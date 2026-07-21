@@ -1,0 +1,1445 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Renewal Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#14213D;
+    --ink-soft:#2B3A5C;
+    --paper:#EEF1F6;
+    --card:#FFFFFF;
+    --line:#D8DEE9;
+    --brass:#B8863E;
+    --brass-soft:#EFE1C8;
+    --green:#2F6F5E;
+    --green-soft:#DEEAE6;
+    --amber:#B8863E;
+    --amber-soft:#F3E7D0;
+    --red:#A8432F;
+    --red-soft:#F3DED8;
+    --muted:#6B7488;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app{max-width:980px;margin:0 auto;padding:32px 24px 80px;}
+
+  .brand{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px;flex-wrap:wrap;gap:8px;}
+  .brand-mark{display:flex;align-items:center;gap:12px;cursor:pointer;}
+  .brand-tab{width:30px;height:38px;background:var(--ink);border-radius:3px;position:relative;flex-shrink:0;}
+  .brand-tab::after{content:'';position:absolute;top:6px;left:6px;right:6px;height:2px;background:var(--brass);}
+  .brand-tab::before{content:'';position:absolute;top:12px;left:6px;right:14px;height:2px;background:rgba(255,255,255,0.35);}
+  h1{font-family:'Fraunces',serif;font-weight:600;font-size:30px;margin:0;letter-spacing:-0.01em;}
+  .tagline{font-size:13.5px;color:var(--muted);margin:4px 0 26px 42px;max-width:520px;}
+
+  .crumb{display:flex;align-items:center;gap:10px;margin:0 0 22px 42px;font-size:13px;color:var(--muted);}
+  .crumb button{background:none;border:none;color:var(--muted);font-family:'Inter',sans-serif;font-size:13px;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:3px;}
+  .crumb button:hover{color:var(--ink);}
+  .crumb .cust-name{color:var(--ink);font-weight:600;}
+  .crumb .edit-cust{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;text-decoration:underline;text-underline-offset:3px;padding:0;margin-left:4px;}
+  .crumb .edit-cust:hover{color:var(--ink);}
+
+  nav{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:28px;}
+  nav button{font-family:'Inter',sans-serif;font-size:13.5px;font-weight:600;letter-spacing:0.01em;background:none;border:none;padding:12px 16px;color:var(--muted);cursor:pointer;border-bottom:2px solid transparent;transition:color .15s ease, border-color .15s ease;}
+  nav button.active{color:var(--ink);border-bottom-color:var(--brass);}
+  nav button:hover{color:var(--ink);}
+
+  .screen{display:none;}
+  .screen.active{display:block;}
+  .view{display:none;}
+  .view.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  .empty{text-align:center;padding:60px 20px;color:var(--muted);}
+  .empty svg{opacity:0.35;margin-bottom:14px;}
+  .empty p{font-size:14px;margin:4px 0;}
+  .empty .lead{font-family:'Fraunces',serif;font-size:19px;color:var(--ink-soft);margin-bottom:6px;}
+
+  .todo-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .todo-toolbar h2{font-family:'Fraunces',serif;font-size:19px;margin:0;}
+  .todo-group{margin-bottom:22px;}
+  .todo-group-h{display:flex;align-items:center;gap:8px;font-size:11.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;color:var(--muted);margin-bottom:9px;}
+  .todo-group-h .dot{width:7px;height:7px;border-radius:50%;}
+  .todo-group-h .dot.red{background:var(--red);}
+  .todo-group-h .dot.amber{background:var(--amber);}
+  .todo-group-h .dot.green{background:var(--green);}
+  .todo-group-h .dot.muted{background:var(--muted);}
+  .todo-group-h .count{background:var(--line);color:var(--ink-soft);border-radius:10px;padding:1px 7px;font-family:'IBM Plex Mono',monospace;font-size:10px;}
+  .task-row{display:flex;align-items:flex-start;gap:12px;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:12px 14px;margin-bottom:7px;}
+  .task-row.clickable{cursor:pointer;transition:border-color .15s ease;}
+  .task-row.clickable:hover{border-color:var(--brass);}
+  .cust-pill{background:var(--brass-soft);color:var(--ink-soft);border-radius:20px;padding:2px 9px;font-size:10.5px;font-weight:600;}
+  .task-row.done{opacity:0.55;}
+  .task-row.done .t-title{text-decoration:line-through;}
+  .task-check{width:19px;height:19px;border-radius:5px;border:1.5px solid var(--line);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px;background:var(--card);}
+  .task-check.checked{background:var(--green);border-color:var(--green);color:#fff;font-size:12px;}
+  .task-body{flex:1;min-width:0;}
+  .t-title{font-size:13.5px;font-weight:500;}
+  .t-meta{display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;}
+  .t-due{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--muted);}
+  .t-notes{font-size:12px;color:var(--muted);margin-top:4px;}
+  .pri{font-size:9.5px;font-weight:700;letter-spacing:0.03em;padding:2px 7px;border-radius:20px;text-transform:uppercase;}
+  .pri.high{background:var(--red-soft);color:var(--red);}
+  .pri.medium{background:var(--amber-soft);color:var(--amber);}
+  .pri.low{background:var(--green-soft);color:var(--green);}
+  .t-source{font-size:9.5px;color:var(--muted);font-style:italic;}
+  .task-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;padding:2px 4px;flex-shrink:0;}
+  .task-del:hover{color:var(--red);}
+  .add-task-row{margin-top:4px;}
+  .add-task-form{display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;background:var(--card);border:1px solid var(--line);border-radius:9px;padding:14px;margin-bottom:16px;}
+  .add-task-form .field{flex:1;min-width:130px;}
+  .add-task-form .field.grow{flex:2;min-width:200px;}
+
+  .cust-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;}
+  .cust-toolbar h2{font-family:'Fraunces',serif;font-size:20px;margin:0;}
+  .cust-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;}
+  .ccard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px;cursor:pointer;transition:border-color .15s ease, box-shadow .15s ease;position:relative;}
+  .ccard:hover{border-color:var(--brass);box-shadow:0 2px 10px rgba(20,33,61,0.06);}
+  .ccard .initials{width:38px;height:38px;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-size:14px;font-weight:600;margin-bottom:12px;}
+  .ccard .cname{font-family:'Fraunces',serif;font-size:17px;font-weight:600;margin:0 0 2px;}
+  .ccard .cmeta{font-size:12px;color:var(--muted);margin-bottom:12px;}
+  .ccard .cstats{display:flex;gap:14px;padding-top:10px;border-top:1px solid var(--line);}
+  .ccard .cstat .k{font-size:9.5px;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;}
+  .ccard .cstat .v{font-family:'IBM Plex Mono',monospace;font-size:13px;margin-top:2px;}
+  .ccard .edit{position:absolute;top:14px;right:14px;background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px;opacity:0;pointer-events:none;transition:opacity .15s ease;}
+  .ccard:hover .edit{opacity:1;pointer-events:auto;}
+  .ccard .edit:hover{color:var(--ink);}
+
+  .cust-list{display:flex;flex-direction:column;gap:6px;}
+  .clist-row{display:flex;align-items:center;gap:14px;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:11px 16px;cursor:pointer;transition:border-color .15s ease;}
+  .clist-row:hover{border-color:var(--brass);}
+  .initials.small{width:30px;height:30px;font-size:11px;flex-shrink:0;border-radius:50%;background:var(--ink);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Fraunces',serif;font-weight:600;}
+  .clist-name{font-family:'Fraunces',serif;font-weight:600;font-size:14.5px;width:170px;flex-shrink:0;}
+  .clist-meta{font-size:12px;color:var(--muted);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .clist-count{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--muted);width:80px;flex-shrink:0;}
+  @media(max-width:640px){
+    .clist-meta{display:none;}
+    .clist-name{width:auto;flex:1;}
+  }
+
+  .modal-backdrop{position:fixed;inset:0;background:rgba(20,33,61,0.4);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--card);border-radius:12px;padding:26px;max-width:400px;width:100%;}
+  .modal h3{font-family:'Fraunces',serif;font-size:18px;margin:0 0 16px;}
+  .modal .field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
+  .modal .field label{font-size:10.5px;color:var(--muted);letter-spacing:0.03em;text-transform:uppercase;}
+  .modal .field input, .modal .field textarea{font-family:'Inter',sans-serif;font-size:13.5px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);}
+  .modal .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+
+  .dash-summary-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:6px 22px;margin-bottom:22px;}
+  .summary-strip{display:flex;gap:24px;padding:16px 0;}
+  .summary-strip .s{flex:1;}
+  .summary-strip .s .n{font-family:'Fraunces',serif;font-size:22px;color:var(--ink);}
+  .summary-strip .s .l{font-size:10.5px;color:var(--muted);letter-spacing:0.03em;text-transform:uppercase;}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px;}
+  .pcard{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:18px 18px 16px;position:relative;overflow:hidden;}
+  .pcard::before{content:attr(data-type);position:absolute;top:0;left:0;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:0.08em;font-weight:500;color:var(--card);background:var(--ink-soft);padding:4px 10px 3px;border-radius:0 0 8px 0;}
+  .pcard-top{display:flex;justify-content:space-between;align-items:flex-start;margin-top:22px;}
+  .carrier{font-family:'Fraunces',serif;font-size:19px;font-weight:600;margin:0 0 2px;}
+  .insured{font-size:12px;color:var(--muted);}
+  .ring-wrap{position:relative;width:54px;height:54px;flex-shrink:0;}
+  .ring-wrap svg{transform:rotate(-90deg);}
+  .ring-days{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;font-family:'IBM Plex Mono',monospace;}
+  .ring-days .n{font-size:15px;font-weight:500;line-height:1;}
+  .ring-days .u{font-size:7px;color:var(--muted);letter-spacing:0.04em;}
+  .pcard-mid{display:flex;gap:18px;margin:16px 0 12px;padding-top:12px;border-top:1px solid var(--line);}
+  .stat .k{font-size:10px;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;}
+  .stat .v{font-family:'IBM Plex Mono',monospace;font-size:14px;margin-top:2px;}
+  .ded-row{margin:0 0 12px;padding-bottom:12px;border-bottom:1px solid var(--line);}
+  .ded-row .k{font-size:10px;color:var(--muted);letter-spacing:0.04em;text-transform:uppercase;}
+  .ded-row .v{font-family:'IBM Plex Mono',monospace;font-size:12.5px;margin-top:3px;line-height:1.5;}
+  .badge{display:inline-block;font-size:10.5px;font-weight:600;padding:3px 9px;border-radius:20px;letter-spacing:0.02em;}
+  .badge.green{background:var(--green-soft);color:var(--green);}
+  .badge.amber{background:var(--amber-soft);color:var(--amber);}
+  .badge.red{background:var(--red-soft);color:var(--red);}
+  .pcard-actions{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;}
+  .btn{font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:6px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;transition:background .15s ease, border-color .15s ease;}
+  .btn:hover{border-color:var(--ink-soft);}
+  .btn.primary{background:var(--ink);color:#fff;border-color:var(--ink);}
+  .btn.primary:hover{background:var(--ink-soft);}
+  .btn.ghost{border-color:transparent;color:var(--muted);}
+  .btn.ghost:hover{color:var(--red);}
+  .btn.small{padding:5px 9px;font-size:11.5px;}
+  .btn:disabled{opacity:0.5;cursor:not-allowed;}
+
+  .items-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;}
+  .item-card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+  .ic-top{display:flex;gap:10px;align-items:flex-start;margin-bottom:10px;}
+  .ic-icon{font-size:19px;line-height:1;}
+  .ic-desc{font-family:'Fraunces',serif;font-weight:600;font-size:14.5px;}
+  .ic-policy{font-size:11px;color:var(--muted);margin-top:2px;}
+  .ic-row{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-top:1px dotted var(--line);}
+  .ic-k{color:var(--muted);}
+  .ic-v{font-family:'IBM Plex Mono',monospace;}
+
+  .dropzone{border:1.5px dashed var(--line);border-radius:12px;padding:48px 24px;text-align:center;background:var(--card);cursor:pointer;transition:border-color .15s ease, background .15s ease;}
+  .dropzone:hover, .dropzone.drag{border-color:var(--brass);background:var(--brass-soft);}
+  .dropzone .lead{font-family:'Fraunces',serif;font-size:19px;margin-bottom:6px;}
+  .dropzone p{color:var(--muted);font-size:13px;margin:4px 0;}
+  .manual-divider{display:flex;align-items:center;gap:12px;margin:16px 0;color:var(--muted);font-size:11.5px;letter-spacing:0.04em;text-transform:uppercase;}
+  .manual-divider::before, .manual-divider::after{content:'';flex:1;height:1px;background:var(--line);}
+  input[type=file]{display:none;}
+
+  .extract-status{display:flex;align-items:center;gap:10px;padding:16px 18px;background:var(--card);border:1px solid var(--line);border-radius:10px;margin-top:16px;font-size:13.5px;color:var(--ink-soft);}
+  .spinner{width:16px;height:16px;border:2px solid var(--line);border-top-color:var(--brass);border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .review-form{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;margin-top:16px;}
+  .review-form h3{font-family:'Fraunces',serif;font-weight:600;font-size:17px;margin:0 0 16px;}
+  .fgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;}
+  .field{display:flex;flex-direction:column;gap:4px;}
+  .field.full{grid-column:1/-1;}
+  .field label{font-size:10.5px;color:var(--muted);letter-spacing:0.03em;text-transform:uppercase;}
+  .field input, .field select, .field textarea{font-family:'IBM Plex Mono',monospace;font-size:13px;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);}
+  .field textarea{font-family:'Inter',sans-serif;resize:vertical;min-height:50px;}
+  .form-actions{display:flex;gap:10px;margin-top:18px;justify-content:flex-end;}
+  .item-row{display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap;}
+  .item-row input{font-family:'IBM Plex Mono',monospace;font-size:12.5px;padding:7px 9px;border:1px solid var(--line);border-radius:6px;background:var(--paper);color:var(--ink);}
+
+  .prep-layout{display:grid;grid-template-columns:230px 1fr;gap:20px;align-items:flex-start;}
+  .prep-list{display:flex;flex-direction:column;gap:6px;}
+  .prep-pick{text-align:left;background:var(--card);border:1px solid var(--line);border-radius:8px;padding:10px 12px;cursor:pointer;font-family:'Inter',sans-serif;}
+  .prep-pick.active{border-color:var(--brass);background:var(--brass-soft);}
+  .prep-pick .c{font-weight:600;font-size:13.5px;}
+  .prep-pick .t{font-size:11px;color:var(--muted);}
+  .prep-panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:22px;}
+  .outreach-tabs{display:flex;gap:8px;flex-wrap:wrap;}
+  .prep-panel .qinput{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .prep-panel .qinput input{flex:1;font-family:'IBM Plex Mono',monospace;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);}
+  .script-box{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:18px 20px;font-size:13.5px;line-height:1.65;white-space:pre-wrap;color:var(--ink-soft);}
+  .script-box .line-label{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--brass);letter-spacing:0.04em;display:block;margin:14px 0 3px;}
+  .script-box .line-label:first-child{margin-top:0;}
+
+  .auth-wrap{max-width:380px;margin:80px auto;padding:0 20px;}
+  .auth-wrap .modal{padding:28px;max-width:none;}
+  .auth-wrap .brand-mark{justify-content:center;margin-bottom:22px;cursor:default;}
+
+  @media print{
+    nav, .app > .tagline, .brand, .crumb{display:none;}
+    body{background:#fff;}
+  }
+  @media(max-width:640px){
+    .fgrid{grid-template-columns:1fr;}
+    .prep-layout{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="auth-wrap" id="authScreen" style="display:none;">
+  <div class="brand-mark">
+    <div class="brand-tab"></div>
+    <h1>Renewal Desk</h1>
+  </div>
+  <div class="modal">
+    <h3>Sign in</h3>
+    <div class="field"><label>Email</label><input id="auth_email" type="email" autocomplete="username"></div>
+    <div class="field"><label>Password</label><input id="auth_password" type="password" autocomplete="current-password"></div>
+    <p id="authError" style="color:var(--red);font-size:12.5px;display:none;margin:0 0 4px;"></p>
+    <div class="modal-actions"><button class="btn primary" id="authSignInBtn" style="width:100%;">Sign in</button></div>
+  </div>
+</div>
+
+<div class="app" id="mainApp" style="display:none;">
+
+  <div class="brand">
+    <div class="brand-mark" id="brandHome">
+      <div class="brand-tab"></div>
+      <h1>Renewal Desk</h1>
+    </div>
+    <button class="btn small ghost" id="signOutBtn">Sign out</button>
+  </div>
+  <p class="tagline" id="taglineText">A real person reviews every customer's policies each year. No lead lists, no spam calls — just the details, checked.</p>
+  <div class="crumb" id="crumb" style="display:none;">
+    <button id="crumbBack">All customers</button>
+    <span>/</span>
+    <span class="cust-name" id="crumbName"></span>
+    <button class="edit-cust" id="crumbEdit">edit</button>
+  </div>
+
+  <div class="screen active" id="screen-customers">
+    <div class="todo-toolbar">
+      <h2>To-Do — All Customers</h2>
+    </div>
+    <div id="globalTodoBody" style="margin-bottom:34px;"></div>
+
+    <div class="cust-toolbar">
+      <h2>Customers</h2>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn small" id="viewGridBtn">Grid</button>
+        <button class="btn small" id="viewListBtn">List</button>
+        <button class="btn primary" id="addCustBtn">+ Add customer</button>
+      </div>
+    </div>
+    <input type="text" id="custSearch" placeholder="Search by name, email, phone, carrier, policy number…" style="width:100%;font-family:'Inter',sans-serif;font-size:13.5px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;background:var(--card);margin-bottom:16px;">
+    <div id="custGrid"></div>
+  </div>
+
+  <div class="screen" id="screen-workspace">
+    <nav>
+      <button class="active" data-view="dashboard">Dashboard</button>
+      <button data-view="upload">Add a Policy</button>
+      <button data-view="todo">To-Do</button>
+      <button data-view="prep">Outreach</button>
+    </nav>
+
+    <div class="view active" id="view-dashboard"><div id="dashGrid"></div></div>
+    <div class="view" id="view-todo"><div id="todoBody"></div></div>
+
+    <div class="view" id="view-upload">
+      <div class="dropzone" id="dropzone">
+        <div class="lead">Drop a declarations page</div>
+        <p>PDF only, for now — auto, home, umbrella, life, whatever they've got.</p>
+        <p style="margin-top:14px;"><span class="btn primary small" style="pointer-events:none;">Choose file</span></p>
+      </div>
+      <input type="file" id="fileInput" accept="application/pdf">
+      <div class="manual-divider"><span>or</span></div>
+      <button class="btn" id="manualEntryBtn" style="width:100%;">Enter policy details manually</button>
+      <div id="extractStatus"></div>
+      <div id="reviewFormWrap"></div>
+    </div>
+
+    <div class="view" id="view-prep"><div id="prepBody"></div></div>
+  </div>
+
+</div>
+
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+let currentCustomer = null;
+const sb = window.supabase.createClient(window.APP_CONFIG.SUPABASE_URL, window.APP_CONFIG.SUPABASE_ANON_KEY);
+
+/* ---------- auth ---------- */
+async function getUserId(){
+  const { data:{ user } } = await sb.auth.getUser();
+  return user ? user.id : null;
+}
+async function initAuth(){
+  const { data:{ session } } = await sb.auth.getSession();
+  updateAuthUI(session);
+  sb.auth.onAuthStateChange((_event, session)=>{ updateAuthUI(session); });
+}
+function updateAuthUI(session){
+  const authScreen = document.getElementById('authScreen');
+  const mainApp = document.getElementById('mainApp');
+  if(session){
+    authScreen.style.display = 'none';
+    mainApp.style.display = 'block';
+    showCustomerScreen();
+  } else {
+    authScreen.style.display = 'block';
+    mainApp.style.display = 'none';
+  }
+}
+document.getElementById('authSignInBtn').addEventListener('click', doSignIn);
+document.getElementById('auth_password').addEventListener('keydown', e=>{ if(e.key==='Enter') doSignIn(); });
+async function doSignIn(){
+  const email = document.getElementById('auth_email').value.trim();
+  const password = document.getElementById('auth_password').value;
+  const errEl = document.getElementById('authError');
+  errEl.style.display = 'none';
+  if(!email || !password) return;
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ errEl.textContent = error.message; errEl.style.display = 'block'; }
+}
+document.getElementById('signOutBtn').addEventListener('click', async ()=>{ await sb.auth.signOut(); });
+
+/* ---------- Anthropic proxy ---------- */
+async function callAnthropic(payload){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(!session) throw new Error('Not signed in');
+  const resp = await fetch('/api/anthropic', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer '+session.access_token },
+    body: JSON.stringify(payload),
+  });
+  if(!resp.ok){
+    const errBody = await resp.json().catch(()=>({}));
+    throw new Error(errBody.error || ('Request failed: '+resp.status));
+  }
+  return resp.json();
+}
+
+/* ---------- row <-> app object mapping ---------- */
+function customerFromRow(r){
+  return { id:r.id, name:r.name, email:r.email||'', phone:r.phone||'', notes:r.notes||'', createdAt:r.created_at };
+}
+function customerToRow(c, userId){
+  return { id:c.id, user_id:userId, name:c.name, email:c.email||null, phone:c.phone||null, notes:c.notes||null };
+}
+function policyFromRow(r){
+  return {
+    id:r.id, policyType:r.policy_type, carrier:r.carrier, namedInsured:r.named_insured,
+    policyNumber:r.policy_number, premium:r.premium, premiumFrequency:r.premium_frequency,
+    deductible:r.deductible, renewalDate:r.renewal_date, coverageLimits:r.coverage_limits,
+    notes:r.notes, insuredItems:r.insured_items||[], filePath:r.file_path, fileName:r.file_name,
+    createdAt:r.created_at,
+  };
+}
+function policyToRow(p, customerId, userId){
+  return {
+    id:p.id, user_id:userId, customer_id:customerId,
+    policy_type:p.policyType||null, carrier:p.carrier||null, named_insured:p.namedInsured||null,
+    policy_number:p.policyNumber||null,
+    premium: (p.premium===undefined || p.premium===null || p.premium==='') ? null : String(p.premium),
+    premium_frequency:p.premiumFrequency||null,
+    deductible: (p.deductible===undefined || p.deductible===null) ? null : String(p.deductible),
+    renewal_date:p.renewalDate||null, coverage_limits:p.coverageLimits||null, notes:p.notes||null,
+    insured_items:p.insuredItems||[],
+  };
+}
+function taskFromRow(r){
+  return { id:r.id, policyId:r.policy_id, title:r.title, dueDate:r.due_date, priority:r.priority, status:r.status, auto:r.auto, notes:r.notes||'', createdAt:r.created_at };
+}
+function taskToRow(t, customerId, userId){
+  return { id:t.id, user_id:userId, customer_id:customerId, policy_id:t.policyId||null, title:t.title, due_date:t.dueDate||null, priority:t.priority||'low', status:t.status||'todo', auto: !!t.auto, notes:t.notes||null };
+}
+
+/* ---------- customer storage ---------- */
+async function getCustomers(){
+  const { data, error } = await sb.from('customers').select('*').order('name');
+  if(error){ console.error(error); return []; }
+  return (data||[]).map(customerFromRow);
+}
+async function saveCustomer(c){
+  const userId = await getUserId();
+  const { error } = await sb.from('customers').upsert(customerToRow(c, userId));
+  if(error) console.error(error);
+}
+async function deleteCustomer(id){
+  const policies = await getPolicies(id);
+  const paths = policies.filter(p=>p.filePath).map(p=>p.filePath);
+  if(paths.length) await sb.storage.from('policy-files').remove(paths);
+  const { error } = await sb.from('customers').delete().eq('id', id);
+  if(error) console.error(error);
+}
+
+/* ---------- policy storage ---------- */
+async function getPolicies(customerId){
+  const { data, error } = await sb.from('policies').select('*').eq('customer_id', customerId).order('renewal_date');
+  if(error){ console.error(error); return []; }
+  return (data||[]).map(policyFromRow);
+}
+async function savePolicy(customerId, p){
+  const userId = await getUserId();
+  const { error } = await sb.from('policies').upsert(policyToRow(p, customerId, userId));
+  if(error) console.error(error);
+}
+async function deletePolicy(customerId, id){
+  const { error } = await sb.from('policies').delete().eq('id', id);
+  if(error) console.error(error);
+}
+
+async function savePolicyFile(customerId, policyId, file){
+  const userId = await getUserId();
+  const path = userId+'/'+customerId+'/'+policyId+'.pdf';
+  const { error: upErr } = await sb.storage.from('policy-files').upload(path, file, { upsert:true, contentType:'application/pdf' });
+  if(upErr){ console.error('Could not save the source PDF', upErr); return; }
+  const { error: updErr } = await sb.from('policies').update({ file_path: path, file_name: file.name }).eq('id', policyId);
+  if(updErr) console.error(updErr);
+}
+async function deletePolicyFile(customerId, policyId){
+  const { data, error } = await sb.from('policies').select('file_path').eq('id', policyId).single();
+  if(error || !data || !data.file_path) return;
+  await sb.storage.from('policy-files').remove([data.file_path]);
+  await sb.from('policies').update({ file_path:null, file_name:null }).eq('id', policyId);
+}
+
+/* ---------- task storage ---------- */
+async function getTasks(customerId){
+  const { data, error } = await sb.from('tasks').select('*').eq('customer_id', customerId);
+  if(error){ console.error(error); return []; }
+  return (data||[]).map(taskFromRow);
+}
+async function saveTask(customerId, t){
+  const userId = await getUserId();
+  const { error } = await sb.from('tasks').upsert(taskToRow(t, customerId, userId));
+  if(error) console.error(error);
+}
+async function deleteTask(customerId, id){
+  const { error } = await sb.from('tasks').delete().eq('id', id);
+  if(error) console.error(error);
+}
+
+function computePriority(dueDate){
+  const d = daysUntil(dueDate);
+  if(d===null) return 'low';
+  if(d<=14) return 'high';
+  if(d<=45) return 'medium';
+  return 'low';
+}
+function addDays(dateStr, n){
+  const d = new Date(dateStr+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return d.toISOString().slice(0,10);
+}
+async function ensureAutoTasks(customerId){
+  const policies = await getPolicies(customerId);
+  const tasks = await getTasks(customerId);
+  const existingAutoPolicyIds = new Set(tasks.filter(t=>t.auto).map(t=>t.policyId));
+  for(const p of policies){
+    if(existingAutoPolicyIds.has(p.id)) continue;
+    if(!p.renewalDate) continue;
+    const dueDate = addDays(p.renewalDate, -30);
+    const task = {
+      id: 'auto_'+p.id,
+      policyId: p.id,
+      title: 'Review & re-shop — '+(p.carrier||'this policy')+' ('+(p.policyType||'policy')+')',
+      dueDate,
+      priority: computePriority(dueDate),
+      status: 'todo',
+      auto: true,
+      notes: '',
+      createdAt: new Date().toISOString(),
+    };
+    await saveTask(customerId, task);
+  }
+}
+
+/* ---------- helpers ---------- */
+function esc(s){ return String(s||'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function initials(name){
+  const parts = (name||'?').trim().split(/\s+/);
+  return ((parts[0]||'')[0]||'?').toUpperCase() + ((parts[1]||'')[0]||'').toUpperCase();
+}
+function daysUntil(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr+'T00:00:00');
+  const now = new Date(); now.setHours(0,0,0,0);
+  return Math.round((d-now)/86400000);
+}
+function badgeFor(days){
+  if(days===null) return {cls:'amber', text:'No date'};
+  if(days<0) return {cls:'red', text:'Past due'};
+  if(days<=30) return {cls:'red', text:days+'d left'};
+  if(days<=60) return {cls:'amber', text:days+'d left'};
+  return {cls:'green', text:days+'d left'};
+}
+function ringSVG(days){
+  const pct = days===null ? 0 : Math.max(0, Math.min(1, 1 - days/365));
+  const r = 22, c = 2*Math.PI*r;
+  const color = days!==null && days<=30 ? 'var(--red)' : days!==null && days<=60 ? 'var(--amber)' : 'var(--green)';
+  return '<svg width="54" height="54" viewBox="0 0 54 54"><circle cx="27" cy="27" r="'+r+'" fill="none" stroke="var(--line)" stroke-width="4"/><circle cx="27" cy="27" r="'+r+'" fill="none" stroke="'+color+'" stroke-width="4" stroke-dasharray="'+c+'" stroke-dashoffset="'+(c*(1-pct))+'" stroke-linecap="round"/></svg>';
+}
+function fmtMoney(v){
+  if(v===undefined||v===null||v==='') return '—';
+  const n = typeof v === 'number' ? v : parseFloat(String(v).replace(/[^0-9.]/g,''));
+  if(isNaN(n)) return v;
+  return '$'+n.toLocaleString(undefined,{maximumFractionDigits:0});
+}
+function fmtMoneyOrText(v){
+  if(v===undefined||v===null||v==='') return '—';
+  if(typeof v === 'number') return fmtMoney(v);
+  const s = String(v).trim();
+  if(/^\$?[\d,]+(\.\d+)?$/.test(s)) return fmtMoney(s);
+  return esc(s);
+}
+function freqLabel(f){
+  if(f==='monthly') return '/mo';
+  if(f==='semiannual') return '/bi-yearly';
+  if(f==='annual') return '/yearly';
+  return '';
+}
+function ordinalDay(n){
+  const s=['th','st','nd','rd'], v=n%100;
+  return n+(s[(v-20)%10]||s[v]||s[0]);
+}
+function formatDate(dateStr){
+  if(!dateStr) return null;
+  const d = new Date(dateStr+'T00:00:00');
+  if(isNaN(d)) return dateStr;
+  const months = ['Jan.','Feb.','March','April','May','June','July','Aug.','Sept.','Oct.','Nov.','Dec.'];
+  return months[d.getMonth()]+' '+ordinalDay(d.getDate())+', '+d.getFullYear();
+}
+
+/* ---------- confirm/alert (custom, since native dialogs are unreliable inside some hosts) ---------- */
+function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+function customConfirm(message){
+  return new Promise(resolve=>{
+    document.getElementById('modalRoot').innerHTML =
+      '<div class="modal-backdrop" id="confirmBackdrop"><div class="modal">'+
+        '<h3>Please confirm</h3>'+
+        '<p style="font-size:13.5px;color:var(--ink-soft);margin:0 0 18px;">'+esc(message)+'</p>'+
+        '<div class="modal-actions"><button class="btn ghost" id="confirmNo">Cancel</button>'+
+        '<button class="btn primary" id="confirmYes" style="background:var(--red);border-color:var(--red);">Confirm</button></div>'+
+      '</div></div>';
+    document.getElementById('confirmNo').addEventListener('click', ()=>{ closeModal(); resolve(false); });
+    document.getElementById('confirmYes').addEventListener('click', ()=>{ closeModal(); resolve(true); });
+    document.getElementById('confirmBackdrop').addEventListener('click', e=>{ if(e.target.id==='confirmBackdrop'){ closeModal(); resolve(false); } });
+  });
+}
+function customAlert(message){
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="alertBackdrop"><div class="modal">'+
+      '<p style="font-size:13.5px;color:var(--ink-soft);margin:0 0 18px;">'+esc(message)+'</p>'+
+      '<div class="modal-actions"><button class="btn primary" id="alertOk">OK</button></div>'+
+    '</div></div>';
+  document.getElementById('alertOk').addEventListener('click', closeModal);
+  document.getElementById('alertBackdrop').addEventListener('click', e=>{ if(e.target.id==='alertBackdrop') closeModal(); });
+}
+
+/* ---------- screen navigation ---------- */
+function showCustomerScreen(){
+  currentCustomer = null;
+  document.getElementById('screen-customers').classList.add('active');
+  document.getElementById('screen-workspace').classList.remove('active');
+  document.getElementById('crumb').style.display = 'none';
+  document.getElementById('taglineText').textContent = "A real person reviews every customer's policies each year. No lead lists, no spam calls — just the details, checked.";
+  renderCustomers();
+  renderGlobalTodo();
+}
+async function openCustomer(id){
+  const customers = await getCustomers();
+  currentCustomer = customers.find(c=>c.id===id);
+  if(!currentCustomer) return;
+  document.getElementById('screen-customers').classList.remove('active');
+  document.getElementById('screen-workspace').classList.add('active');
+  document.getElementById('crumb').style.display = 'flex';
+  document.getElementById('crumbName').textContent = currentCustomer.name;
+  document.getElementById('taglineText').textContent = "This customer's policies, renewals, and call prep — all in one place.";
+  document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+  document.querySelector('nav button[data-view="dashboard"]').classList.add('active');
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-dashboard').classList.add('active');
+  renderDashboard();
+}
+document.getElementById('brandHome').addEventListener('click', showCustomerScreen);
+document.getElementById('crumbBack').addEventListener('click', showCustomerScreen);
+document.getElementById('crumbEdit').addEventListener('click', ()=>openCustomerModal(currentCustomer));
+
+document.querySelectorAll('nav button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('view-'+b.dataset.view).classList.add('active');
+    if(b.dataset.view==='dashboard') renderDashboard();
+    if(b.dataset.view==='todo') renderTodo();
+    if(b.dataset.view==='prep') renderPrep();
+  });
+});
+
+/* ---------- CUSTOMERS screen ---------- */
+window._custViewMode = window._custViewMode || 'grid';
+window._custSearchQuery = window._custSearchQuery || '';
+
+async function renderCustomers(){
+  const grid = document.getElementById('custGrid');
+  const customers = await getCustomers();
+  if(!customers.length){
+    grid.innerHTML = '<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg><div class="lead">No customers yet</div><p>Add your first customer to start tracking their policies.</p></div>';
+    return;
+  }
+  let rows = await Promise.all(customers.map(async c=>{
+    const policies = await getPolicies(c.id);
+    const withDays = policies.map(p=>daysUntil(p.renewalDate)).filter(d=>d!==null);
+    const nextDays = withDays.length ? Math.min(...withDays) : null;
+    return {c, policies, count: policies.length, nextDays};
+  }));
+
+  const q = (window._custSearchQuery||'').trim().toLowerCase();
+  if(q){
+    rows = rows.filter(({c, policies})=>{
+      const custFields = [c.name, c.email, c.phone, c.notes];
+      if(custFields.some(f=> (f||'').toLowerCase().includes(q))) return true;
+      return policies.some(p=>{
+        const pFields = [p.carrier, p.policyNumber, p.namedInsured, p.policyType, p.coverageLimits];
+        return pFields.some(f=> (f||'').toLowerCase().includes(q));
+      });
+    });
+  }
+
+  if(!rows.length){
+    grid.innerHTML = '<div class="empty"><div class="lead">No matches</div><p>Try a different name, email, phone, or policy number.</p></div>';
+    return;
+  }
+
+  if(window._custViewMode==='list'){
+    grid.innerHTML = '<div class="cust-list">'+rows.map(({c,count,nextDays})=>{
+      const b = badgeFor(nextDays);
+      return '<div class="clist-row" onclick="openCustomer(\''+c.id+'\')">'+
+        '<div class="initials small">'+initials(c.name)+'</div>'+
+        '<div class="clist-name">'+esc(c.name)+'</div>'+
+        '<div class="clist-meta">'+esc(c.email||c.phone||'—')+'</div>'+
+        '<div class="clist-count">'+count+' polic'+(count===1?'y':'ies')+'</div>'+
+        '<span class="badge '+b.cls+'">'+b.text+'</span>'+
+        '<button class="edit" style="opacity:1;position:static;pointer-events:auto;" onclick="event.stopPropagation();openCustomerModalById(\''+c.id+'\')">✎</button>'+
+      '</div>';
+    }).join('')+'</div>';
+    return;
+  }
+
+  grid.innerHTML = '<div class="cust-grid">'+rows.map(({c,count,nextDays})=>{
+    return '<div class="ccard" onclick="openCustomer(\''+c.id+'\')">'+
+      '<button class="edit" onclick="event.stopPropagation();openCustomerModalById(\''+c.id+'\')">✎</button>'+
+      '<div class="initials">'+initials(c.name)+'</div>'+
+      '<p class="cname">'+esc(c.name)+'</p>'+
+      '<p class="cmeta">'+esc(c.email||c.phone||'No contact on file')+'</p>'+
+      '<div class="cstats">'+
+        '<div class="cstat"><div class="k">Policies</div><div class="v">'+count+'</div></div>'+
+        '<div class="cstat"><div class="k">Next renewal</div><div class="v">'+(nextDays===null?'—':nextDays+'d')+'</div></div>'+
+      '</div></div>';
+  }).join('')+'</div>';
+}
+document.getElementById('custSearch').addEventListener('input', e=>{
+  window._custSearchQuery = e.target.value;
+  renderCustomers();
+});
+document.getElementById('viewGridBtn').addEventListener('click', ()=>{ window._custViewMode='grid'; syncViewToggle(); renderCustomers(); });
+document.getElementById('viewListBtn').addEventListener('click', ()=>{ window._custViewMode='list'; syncViewToggle(); renderCustomers(); });
+function syncViewToggle(){
+  document.getElementById('viewGridBtn').classList.toggle('primary', window._custViewMode==='grid');
+  document.getElementById('viewListBtn').classList.toggle('primary', window._custViewMode==='list');
+}
+syncViewToggle();
+
+document.getElementById('addCustBtn').addEventListener('click', ()=>openCustomerModal(null));
+
+async function openCustomerModalById(id){
+  const customers = await getCustomers();
+  openCustomerModal(customers.find(c=>c.id===id) || null);
+}
+
+function openCustomerModal(existing){
+  const isEdit = !!existing;
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="modalBackdrop"><div class="modal">'+
+    '<h3>'+(isEdit ? 'Edit customer' : 'Add a customer')+'</h3>'+
+    '<div class="field"><label>Name</label><input id="m_name" placeholder="Jane Rivera" value="'+esc(existing?existing.name:'')+'"></div>'+
+    '<div class="field"><label>Email</label><input id="m_email" placeholder="jane@email.com" value="'+esc(existing?existing.email:'')+'"></div>'+
+    '<div class="field"><label>Phone</label><input id="m_phone" placeholder="(555) 555-0100" value="'+esc(existing?existing.phone:'')+'"></div>'+
+    '<div class="field"><label>Notes</label><textarea id="m_notes" placeholder="How you know them, referral source, etc.">'+esc(existing?existing.notes:'')+'</textarea></div>'+
+    '<div class="modal-actions">'+
+      (isEdit ? '<button class="btn ghost" id="m_delete" style="margin-right:auto;color:var(--red);">Delete customer</button>' : '')+
+      '<button class="btn ghost" id="m_cancel">Cancel</button>'+
+      '<button class="btn primary" id="m_save">'+(isEdit ? 'Save changes' : 'Add customer')+'</button>'+
+    '</div></div></div>';
+  document.getElementById('m_cancel').addEventListener('click', closeModal);
+  document.getElementById('modalBackdrop').addEventListener('click', e=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+  if(isEdit){
+    document.getElementById('m_delete').addEventListener('click', async ()=>{
+      const ok = await customConfirm('Remove '+existing.name+' and all of their policies? This can\'t be undone.');
+      if(!ok) return;
+      await deleteCustomer(existing.id);
+      closeModal();
+      if(currentCustomer && currentCustomer.id===existing.id){ showCustomerScreen(); }
+      else { renderCustomers(); }
+    });
+  }
+  document.getElementById('m_save').addEventListener('click', async ()=>{
+    const name = document.getElementById('m_name').value.trim();
+    if(!name){ customAlert('Name is required.'); return; }
+    const c = {
+      id: isEdit ? existing.id : 'c_'+Date.now(),
+      name,
+      email: document.getElementById('m_email').value.trim(),
+      phone: document.getElementById('m_phone').value.trim(),
+      notes: document.getElementById('m_notes').value.trim(),
+      createdAt: isEdit ? existing.createdAt : new Date().toISOString(),
+    };
+    await saveCustomer(c);
+    closeModal();
+    if(isEdit && currentCustomer && currentCustomer.id===c.id){
+      currentCustomer = c;
+      document.getElementById('crumbName').textContent = c.name;
+    }
+    if(document.getElementById('screen-customers').classList.contains('active')) renderCustomers();
+  });
+}
+
+/* ---------- DASHBOARD ---------- */
+async function renderDashboard(){
+  if(!currentCustomer) return;
+  const grid = document.getElementById('dashGrid');
+  const policies = await getPolicies(currentCustomer.id);
+  if(!policies.length){
+    grid.innerHTML = '<div class="empty"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h5"/></svg><div class="lead">Nothing on '+esc(currentCustomer.name)+'\'s desk yet</div><p>Add a declarations page to start tracking a policy.</p></div>';
+    return;
+  }
+
+  const totalAnnual = policies.reduce((sum,p)=>{
+    const n = parseFloat(String(p.premium||0).replace(/[^0-9.]/g,'')) || 0;
+    const mult = p.premiumFrequency==='monthly' ? 12 : p.premiumFrequency==='semiannual' ? 2 : 1;
+    return sum + n*mult;
+  },0);
+  const upcoming60 = policies.filter(p=>{ const d = daysUntil(p.renewalDate); return d!==null && d<=60; });
+  const summaryBar =
+    '<div class="dash-summary-card"><div class="summary-strip">'+
+      '<div class="s"><div class="n">'+policies.length+'</div><div class="l">Policies on file</div></div>'+
+      '<div class="s"><div class="n">'+fmtMoney(totalAnnual)+'</div><div class="l">Combined annual premium</div></div>'+
+      '<div class="s"><div class="n">'+upcoming60.length+'</div><div class="l">Renewing within 60 days</div></div>'+
+    '</div></div>';
+
+  const policyCards = '<div class="grid">'+policies.map(p=>{
+    const days = daysUntil(p.renewalDate);
+    const b = badgeFor(days);
+    return '<div class="pcard" data-type="'+(p.policyType||'POLICY').toUpperCase()+'">'+
+      '<div class="pcard-top"><div><p class="carrier">'+esc(p.carrier||'Unknown carrier')+'</p><p class="insured">'+esc(p.namedInsured||'')+'</p></div>'+
+      '<div class="ring-wrap">'+ringSVG(days)+'<div class="ring-days"><span class="n">'+(days===null?'–':days)+'</span><span class="u">DAYS</span></div></div></div>'+
+      '<div class="pcard-mid">'+
+        '<div class="stat"><div class="k">Premium</div><div class="v">'+fmtMoney(p.premium)+freqLabel(p.premiumFrequency)+'</div></div>'+
+        '<div class="stat"><div class="k">Renews</div><div class="v">'+(formatDate(p.renewalDate)||'—')+'</div></div>'+
+      '</div>'+
+      '<div class="ded-row"><div class="k">Coverage</div><div class="v">'+(p.coverageLimits ? esc(p.coverageLimits) : '—')+'</div></div>'+
+      '<div class="ded-row"><div class="k">Deductibles</div><div class="v">'+fmtMoneyOrText(p.deductible)+'</div></div>'+
+      '<span class="badge '+b.cls+'">'+b.text+'</span>'+
+      '<div class="pcard-actions">'+
+        '<button class="btn small" onclick="editPolicyFromDashboard(\''+p.id+'\')">Edit</button>'+
+        '<button class="btn small" onclick="viewPolicyPdf(\''+p.id+'\')">View PDF</button>'+
+        '<button class="btn small" onclick="goPrep(\''+p.id+'\')">Prep call</button>'+
+        '<button class="btn small ghost" onclick="removePolicy(\''+p.id+'\')">Delete</button>'+
+      '</div>'+
+      '</div>';
+  }).join('')+'</div>';
+
+  let allItems = [];
+  policies.forEach(p=>{
+    (p.insuredItems||[]).forEach(it=>{
+      allItems.push(Object.assign({}, it, {policyCarrier: p.carrier, policyType: p.policyType, policyId: p.id}));
+    });
+  });
+  const itemIcons = {vehicle:'\u{1F697}', property:'\u{1F3E0}', other:'\u{1F4CB}'};
+  const itemsSection = allItems.length ? (
+    '<h2 style="font-family:\'Fraunces\',serif;font-size:18px;margin:30px 0 14px;">Insured Vehicles &amp; Property</h2>'+
+    '<div class="items-grid">'+allItems.map(it=>
+      '<div class="item-card">'+
+        '<div class="ic-top"><span class="ic-icon">'+(itemIcons[it.type]||itemIcons.other)+'</span>'+
+          '<div><div class="ic-desc">'+esc(it.description||'Unnamed item')+'</div>'+
+          '<div class="ic-policy">'+esc(it.policyCarrier||'Unknown')+' · '+esc((it.policyType||'').toUpperCase())+'</div></div></div>'+
+        (it.vin ? '<div class="ic-row"><span class="ic-k">VIN</span><span class="ic-v">'+esc(it.vin)+'</span></div>' : '')+
+        (it.mileage ? '<div class="ic-row"><span class="ic-k">Annual mileage</span><span class="ic-v">'+esc(it.mileage)+'</span></div>' : '')+
+        (it.detail ? '<div class="ic-row"><span class="ic-k">Detail</span><span class="ic-v">'+esc(it.detail)+'</span></div>' : '')+
+        '<button class="btn small" style="margin-top:10px;" onclick="goPrep(\''+it.policyId+'\')">Use in outreach</button>'+
+      '</div>'
+    ).join('')+'</div>'
+  ) : '';
+
+  grid.innerHTML = summaryBar + policyCards + itemsSection;
+}
+async function removePolicy(id){
+  const ok = await customConfirm('Remove this policy from the desk?');
+  if(!ok) return;
+  await deletePolicyFile(currentCustomer.id, id);
+  await deletePolicy(currentCustomer.id, id);
+  renderDashboard();
+}
+function goPrep(id){
+  document.querySelector('nav button[data-view="prep"]').click();
+  window._prepSelectId = id;
+}
+async function editPolicyFromDashboard(id){
+  const policies = await getPolicies(currentCustomer.id);
+  const p = policies.find(x=>x.id===id);
+  if(!p) return;
+  window._pendingFile = null;
+  window._pendingFileName = null;
+  document.querySelector('nav button[data-view="upload"]').click();
+  document.getElementById('extractStatus').innerHTML = '';
+  showReviewForm(p);
+}
+async function viewPolicyPdf(id){
+  const { data: policy, error } = await sb.from('policies').select('file_path,file_name').eq('id', id).single();
+  if(error || !policy || !policy.file_path){
+    customAlert('No PDF saved for this policy — it may have been added before this feature existed, or entered manually.');
+    return;
+  }
+  const { data: signed, error: signErr } = await sb.storage.from('policy-files').createSignedUrl(policy.file_path, 300);
+  if(signErr || !signed){
+    customAlert('Could not load the saved PDF right now. Try again in a moment.');
+    return;
+  }
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="pdfBackdrop"><div class="modal" style="max-width:760px;width:92vw;">'+
+      '<h3>'+esc(policy.file_name||'Declarations page')+'</h3>'+
+      '<iframe src="'+signed.signedUrl+'" style="width:100%;height:65vh;border:1px solid var(--line);border-radius:8px;"></iframe>'+
+      '<div class="modal-actions">'+
+        '<a class="btn small" href="'+signed.signedUrl+'" download="'+esc(policy.file_name||'declarations.pdf')+'">Download</a>'+
+        '<button class="btn primary" id="pdfClose">Close</button>'+
+      '</div>'+
+    '</div></div>';
+  document.getElementById('pdfClose').addEventListener('click', closeModal);
+  document.getElementById('pdfBackdrop').addEventListener('click', e=>{ if(e.target.id==='pdfBackdrop') closeModal(); });
+}
+function discardReview(){
+  document.getElementById('reviewFormWrap').innerHTML = '';
+  document.getElementById('extractStatus').innerHTML = '';
+  fileInput.value = '';
+  window._pendingFile = null;
+  window._pendingFileName = null;
+}
+
+/* ---------- UPLOAD / EXTRACTION ---------- */
+const dropzone = document.getElementById('dropzone');
+const fileInput = document.getElementById('fileInput');
+dropzone.addEventListener('click', ()=>fileInput.click());
+dropzone.addEventListener('dragover', e=>{e.preventDefault(); dropzone.classList.add('drag');});
+dropzone.addEventListener('dragleave', ()=>dropzone.classList.remove('drag'));
+dropzone.addEventListener('drop', e=>{
+  e.preventDefault(); dropzone.classList.remove('drag');
+  if(e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+});
+fileInput.addEventListener('change', e=>{ if(e.target.files.length) handleFile(e.target.files[0]); });
+document.getElementById('manualEntryBtn').addEventListener('click', ()=>{
+  window._pendingFile = null;
+  window._pendingFileName = null;
+  document.getElementById('extractStatus').innerHTML = '';
+  showReviewForm({});
+});
+
+async function handleFile(file){
+  const statusEl = document.getElementById('extractStatus');
+  document.getElementById('reviewFormWrap').innerHTML = '';
+  if(file.type !== 'application/pdf'){
+    statusEl.innerHTML = '<div class="extract-status" style="color:var(--red);">Only PDF files work right now — try exporting the dec page as a PDF.</div>';
+    return;
+  }
+  statusEl.innerHTML = '<div class="extract-status"><div class="spinner"></div> Reading the document…</div>';
+  try{
+    const base64Data = await new Promise((res, rej)=>{
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(',')[1]);
+      r.onerror = () => rej(new Error('Read failed'));
+      r.readAsDataURL(file);
+    });
+    window._pendingFile = file;
+    window._pendingFileName = file.name;
+    const data = await callAnthropic({
+      max_tokens: 1000,
+      system: "You extract structured data from insurance declarations pages. Respond with ONLY a raw JSON object, no markdown fences, no preamble. Fields: carrier (string — the short, common brand name only, e.g. 'Allstate' not 'Allstate Fire and Casualty Insurance Company', 'State Farm' not 'State Farm Mutual Automobile Insurance Company'; strip legal suffixes like Inc., Insurance Company, Mutual, Group, of America, etc.), policyType (one of: auto, home, renters, umbrella, life, health, landlord, other), policyNumber (string), namedInsured (string), premium (number, total premium as a plain number no symbols), premiumFrequency (one of: annual, semiannual, monthly), deductibles (string — list every deductible found on the page with its label, e.g. '$500 collision / $500 comprehensive' or '$1,000 wind/hail, $2,500 all other perils, $0 liability'; if there is only one, just state it plainly e.g. '$500'), coverageLimits (short string summarizing key limits, e.g. '100/300/100 liability, $250k dwelling'), effectiveDate (YYYY-MM-DD), renewalDate (YYYY-MM-DD, the policy expiration/renewal date), insuredItems (array of objects — every distinct insured vehicle or property listed on the page; for auto policies list EACH vehicle separately. Each object has: type ('vehicle' or 'property' or 'other'), description (short label, e.g. '2022 Honda Civic EX' or '123 Main St, Herndon VA'), vin (string, only for vehicles, null if not found), mileage (string, annual mileage, only for vehicles, null if not found), detail (string, one more relevant fact, null if none). If no insurable items are listed, return an empty array.), notes (short string, any red flags or unusual terms, or empty string). If a field truly cannot be found, use null.",
+      messages: [
+        { role: "user", content: [
+          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } },
+          { type: "text", text: "Extract the policy data as JSON per the schema." }
+        ]}
+      ],
+    });
+    const textBlock = (data.content||[]).find(b=>b.type==='text');
+    if(!textBlock) throw new Error('No response text');
+    const clean = textBlock.text.replace(/```json|```/g,'').trim();
+    const extracted = JSON.parse(clean);
+    statusEl.innerHTML = '<div class="extract-status" style="color:var(--green);">Extracted — check the details below before saving.</div>';
+    showReviewForm(extracted);
+  }catch(err){
+    console.error(err);
+    statusEl.innerHTML = '<div class="extract-status" style="color:var(--red);">Couldn\'t read that document. Try a clearer scan, or enter the details manually below.</div>';
+    showReviewForm({});
+  }
+}
+
+function showReviewForm(p){
+  const wrap = document.getElementById('reviewFormWrap');
+  const id = p.id || ('p_'+Date.now());
+  const types = ['auto','home','renters','umbrella','life','health','landlord','other'];
+  const freqs = ['annual','semiannual','monthly'];
+  window._editingItems = Array.isArray(p.insuredItems) ? p.insuredItems.map(x=>Object.assign({},x)) : [];
+  wrap.innerHTML = '<div class="review-form"><h3>Confirm the details for '+esc(currentCustomer.name)+'</h3><div class="fgrid">'+
+    '<div class="field"><label>Policy type</label><select id="f_policyType">'+types.map(t=>'<option value="'+t+'" '+(p.policyType===t?'selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>Carrier</label><input id="f_carrier" value="'+esc(p.carrier||'')+'"></div>'+
+    '<div class="field"><label>Named insured</label><input id="f_namedInsured" value="'+esc(p.namedInsured||currentCustomer.name||'')+'"></div>'+
+    '<div class="field"><label>Policy number</label><input id="f_policyNumber" value="'+esc(p.policyNumber||'')+'"></div>'+
+    '<div class="field"><label>Premium ($)</label><input id="f_premium" value="'+esc(p.premium??'')+'"></div>'+
+    '<div class="field"><label>Frequency</label><select id="f_premiumFrequency">'+freqs.map(t=>'<option value="'+t+'" '+(p.premiumFrequency===t?'selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
+    '<div class="field"><label>Deductibles</label><input id="f_deductible" value="'+esc(p.deductibles ?? p.deductible ?? '')+'" placeholder="$500 collision / $500 comprehensive"></div>'+
+    '<div class="field"><label>Renewal date</label><input id="f_renewalDate" type="date" value="'+esc(p.renewalDate||'')+'"></div>'+
+    '<div class="field full"><label>Coverage limits</label><input id="f_coverageLimits" value="'+esc(p.coverageLimits||'')+'"></div>'+
+    '<div class="field full"><label>Notes</label><textarea id="f_notes">'+esc(p.notes||'')+'</textarea></div>'+
+    '</div>'+
+    '<h3 style="margin-top:24px;">Insured vehicles &amp; property</h3>'+
+    '<div id="itemsList"></div>'+
+    '<button class="btn small" id="addItemBtn" type="button">+ Add vehicle or property</button>'+
+    '<div class="form-actions">'+
+    '<button class="btn ghost" onclick="discardReview()">Discard</button>'+
+    '<button class="btn primary" id="saveBtn">Save to desk</button></div></div>';
+  renderItemsList();
+  document.getElementById('addItemBtn').addEventListener('click', ()=>{
+    window._editingItems.push({type:'vehicle', description:'', vin:'', mileage:'', detail:''});
+    renderItemsList();
+  });
+  document.getElementById('saveBtn').addEventListener('click', async ()=>{
+    syncItemsFromForm();
+    const policy = {
+      id, policyType: val('f_policyType'), carrier: val('f_carrier'), namedInsured: val('f_namedInsured'),
+      policyNumber: val('f_policyNumber'), premium: val('f_premium'), premiumFrequency: val('f_premiumFrequency'),
+      deductible: val('f_deductible'), renewalDate: val('f_renewalDate'), coverageLimits: val('f_coverageLimits'),
+      notes: val('f_notes'), insuredItems: window._editingItems,
+    };
+    await savePolicy(currentCustomer.id, policy);
+    if(window._pendingFile){
+      await savePolicyFile(currentCustomer.id, id, window._pendingFile);
+      window._pendingFile = null;
+      window._pendingFileName = null;
+    }
+    wrap.innerHTML = '';
+    document.getElementById('extractStatus').innerHTML = '<div class="extract-status" style="color:var(--green);">Saved to '+esc(currentCustomer.name)+'\'s desk.</div>';
+    fileInput.value = '';
+    setTimeout(()=>{ document.querySelector('nav button[data-view="dashboard"]').click(); }, 500);
+  });
+}
+function renderItemsList(){
+  const el = document.getElementById('itemsList');
+  const items = window._editingItems;
+  if(!items.length){
+    el.innerHTML = '<p style="font-size:12.5px;color:var(--muted);margin:6px 0 12px;">No vehicles or property added yet — extracted automatically from the PDF when possible, or add manually.</p>';
+    return;
+  }
+  el.innerHTML = items.map((it,i)=>
+    '<div class="item-row">'+
+      '<select class="it-type" data-i="'+i+'">'+
+        ['vehicle','property','other'].map(t=>'<option value="'+t+'" '+(it.type===t?'selected':'')+'>'+t+'</option>').join('')+
+      '</select>'+
+      '<input class="it-desc" data-i="'+i+'" placeholder="2022 Honda Civic EX / 123 Main St" value="'+esc(it.description||'')+'" style="flex:2;min-width:160px;">'+
+      '<input class="it-vin" data-i="'+i+'" placeholder="VIN" value="'+esc(it.vin||'')+'" style="flex:1;min-width:120px;">'+
+      '<input class="it-mileage" data-i="'+i+'" placeholder="Annual mileage" value="'+esc(it.mileage||'')+'" style="flex:1;min-width:100px;">'+
+      '<button class="task-del" onclick="removeItemRow('+i+')" type="button">✕</button>'+
+    '</div>'
+  ).join('');
+}
+function removeItemRow(i){
+  syncItemsFromForm();
+  window._editingItems.splice(i,1);
+  renderItemsList();
+}
+function syncItemsFromForm(){
+  document.querySelectorAll('.it-type').forEach(el=>{ window._editingItems[el.dataset.i].type = el.value; });
+  document.querySelectorAll('.it-desc').forEach(el=>{ window._editingItems[el.dataset.i].description = el.value; });
+  document.querySelectorAll('.it-vin').forEach(el=>{ window._editingItems[el.dataset.i].vin = el.value; });
+  document.querySelectorAll('.it-mileage').forEach(el=>{ window._editingItems[el.dataset.i].mileage = el.value; });
+}
+function val(id){ return document.getElementById(id).value; }
+
+/* ---------- TO-DO (per customer) ---------- */
+async function renderTodo(){
+  if(!currentCustomer) return;
+  await ensureAutoTasks(currentCustomer.id);
+  const body = document.getElementById('todoBody');
+  const tasks = await getTasks(currentCustomer.id);
+
+  const open = tasks.filter(t=>t.status!=='done');
+  const done = tasks.filter(t=>t.status==='done');
+  const overdue = open.filter(t=> daysUntil(t.dueDate)!==null && daysUntil(t.dueDate)<0);
+  const thisWeek = open.filter(t=>{ const d=daysUntil(t.dueDate); return d!==null && d>=0 && d<=7; });
+  const thisMonth = open.filter(t=>{ const d=daysUntil(t.dueDate); return d!==null && d>7 && d<=30; });
+  const later = open.filter(t=>{ const d=daysUntil(t.dueDate); return d===null || d>30; });
+
+  function taskRow(t){
+    const d = daysUntil(t.dueDate);
+    const dueLabel = t.dueDate ? (d<0 ? Math.abs(d)+'d overdue' : d===0 ? 'due today' : 'due in '+d+'d') : 'no due date';
+    return '<div class="task-row '+(t.status==='done'?'done':'')+'">'+
+      '<div class="task-check '+(t.status==='done'?'checked':'')+'" onclick="toggleTask(\''+t.id+'\')">'+(t.status==='done'?'✓':'')+'</div>'+
+      '<div class="task-body">'+
+        '<div class="t-title">'+esc(t.title)+'</div>'+
+        '<div class="t-meta">'+
+          '<span class="t-due">'+esc(formatDate(t.dueDate)||'—')+' · '+dueLabel+'</span>'+
+          '<span class="pri '+esc(t.priority||'low')+'">'+esc(t.priority||'low')+'</span>'+
+          (t.auto ? '<span class="t-source">auto · from policy renewal</span>' : '')+
+        '</div>'+
+        (t.notes ? '<div class="t-notes">'+esc(t.notes)+'</div>' : '')+
+      '</div>'+
+      '<button class="task-del" onclick="removeTask(\''+t.id+'\')">✕</button>'+
+    '</div>';
+  }
+  function group(title, dotCls, list){
+    if(!list.length) return '';
+    list.sort((a,b)=> new Date(a.dueDate||'2999-01-01') - new Date(b.dueDate||'2999-01-01'));
+    return '<div class="todo-group">'+
+      '<div class="todo-group-h"><span class="dot '+dotCls+'"></span>'+title+'<span class="count">'+list.length+'</span></div>'+
+      list.map(taskRow).join('')+
+    '</div>';
+  }
+
+  body.innerHTML =
+    '<div class="todo-toolbar"><h2>To-Do</h2><button class="btn primary" id="addTaskBtn">+ Add task</button></div>'+
+    '<div id="addTaskFormWrap"></div>'+
+    (open.length===0 && done.length===0 ? '<div class="empty"><div class="lead">Nothing to do yet</div><p>Tasks appear automatically 30 days before each policy renews.</p></div>' : '')+
+    group('Overdue', 'red', overdue)+
+    group('This week', 'red', thisWeek)+
+    group('This month', 'amber', thisMonth)+
+    group('Later', 'green', later)+
+    group('Done', 'muted', done);
+
+  document.getElementById('addTaskBtn').addEventListener('click', showAddTaskForm);
+}
+
+function showAddTaskForm(){
+  const wrap = document.getElementById('addTaskFormWrap');
+  wrap.innerHTML = '<div class="add-task-form">'+
+    '<div class="field grow"><label>Task</label><input id="nt_title" placeholder="Call customer about umbrella quote"></div>'+
+    '<div class="field"><label>Due date</label><input id="nt_due" type="date"></div>'+
+    '<div class="field"><label>Priority</label><select id="nt_priority"><option value="high">high</option><option value="medium" selected>medium</option><option value="low">low</option></select></div>'+
+    '<button class="btn primary small" id="nt_save">Add</button>'+
+    '<button class="btn ghost small" id="nt_cancel">Cancel</button>'+
+  '</div>';
+  document.getElementById('nt_cancel').addEventListener('click', ()=>{ wrap.innerHTML=''; });
+  document.getElementById('nt_save').addEventListener('click', async ()=>{
+    const title = document.getElementById('nt_title').value.trim();
+    if(!title){ customAlert('Give the task a short title.'); return; }
+    const task = {
+      id: 't_'+Date.now(),
+      policyId: null,
+      title,
+      dueDate: document.getElementById('nt_due').value || null,
+      priority: document.getElementById('nt_priority').value,
+      status: 'todo',
+      auto: false,
+      notes: '',
+      createdAt: new Date().toISOString(),
+    };
+    await saveTask(currentCustomer.id, task);
+    wrap.innerHTML = '';
+    renderTodo();
+  });
+}
+async function toggleTask(id){
+  const tasks = await getTasks(currentCustomer.id);
+  const t = tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.status = t.status==='done' ? 'todo' : 'done';
+  await saveTask(currentCustomer.id, t);
+  renderTodo();
+}
+async function removeTask(id){
+  await deleteTask(currentCustomer.id, id);
+  renderTodo();
+}
+
+/* ---------- TO-DO (global, all customers) ---------- */
+async function renderGlobalTodo(){
+  const container = document.getElementById('globalTodoBody');
+  const customers = await getCustomers();
+  if(!customers.length){
+    container.innerHTML = '<div class="empty" style="padding:30px 20px;"><p>Add a customer to start seeing renewal to-dos here.</p></div>';
+    return;
+  }
+  let allTasks = [];
+  for(const c of customers){
+    await ensureAutoTasks(c.id);
+    const tasks = await getTasks(c.id);
+    tasks.forEach(t=> allTasks.push(Object.assign({}, t, {customerId: c.id, customerName: c.name})));
+  }
+  const open = allTasks.filter(t=>t.status!=='done');
+  const done = allTasks.filter(t=>t.status==='done');
+  const overdue = open.filter(t=> daysUntil(t.dueDate)!==null && daysUntil(t.dueDate)<0);
+  const thisWeek = open.filter(t=>{ const d=daysUntil(t.dueDate); return d!==null && d>=0 && d<=7; });
+  const thisMonth = open.filter(t=>{ const d=daysUntil(t.dueDate); return d!==null && d>7 && d<=30; });
+  const later = open.filter(t=>{ const d=daysUntil(t.dueDate); return d===null || d>30; });
+
+  function grow(t){
+    const d = daysUntil(t.dueDate);
+    const dueLabel = t.dueDate ? (d<0 ? Math.abs(d)+'d overdue' : d===0 ? 'due today' : 'due in '+d+'d') : 'no due date';
+    return '<div class="task-row clickable '+(t.status==='done'?'done':'')+'" onclick="openCustomer(\''+t.customerId+'\')">'+
+      '<div class="task-check '+(t.status==='done'?'checked':'')+'" onclick="event.stopPropagation();toggleGlobalTask(\''+t.customerId+'\',\''+t.id+'\')">'+(t.status==='done'?'✓':'')+'</div>'+
+      '<div class="task-body">'+
+        '<div class="t-title">'+esc(t.title)+'</div>'+
+        '<div class="t-meta">'+
+          '<span class="cust-pill">'+esc(t.customerName)+'</span>'+
+          '<span class="t-due">'+esc(formatDate(t.dueDate)||'—')+' · '+dueLabel+'</span>'+
+          '<span class="pri '+esc(t.priority||'low')+'">'+esc(t.priority||'low')+'</span>'+
+        '</div>'+
+      '</div>'+
+      '<button class="task-del" onclick="event.stopPropagation();removeGlobalTask(\''+t.customerId+'\',\''+t.id+'\')">✕</button>'+
+    '</div>';
+  }
+  function grp(title, dotCls, list){
+    if(!list.length) return '';
+    list.sort((a,b)=> new Date(a.dueDate||'2999-01-01') - new Date(b.dueDate||'2999-01-01'));
+    return '<div class="todo-group"><div class="todo-group-h"><span class="dot '+dotCls+'"></span>'+title+'<span class="count">'+list.length+'</span></div>'+list.map(grow).join('')+'</div>';
+  }
+  container.innerHTML =
+    (allTasks.length===0 ? '<div class="empty" style="padding:30px 20px;"><p>Nothing due yet — tasks appear 30 days before each policy renews.</p></div>' : '')+
+    grp('Overdue','red',overdue)+grp('This week','red',thisWeek)+grp('This month','amber',thisMonth)+grp('Later','green',later)+grp('Done','muted',done);
+}
+async function toggleGlobalTask(customerId, id){
+  const tasks = await getTasks(customerId);
+  const t = tasks.find(x=>x.id===id);
+  if(!t) return;
+  t.status = t.status==='done' ? 'todo' : 'done';
+  await saveTask(customerId, t);
+  renderGlobalTodo();
+}
+async function removeGlobalTask(customerId, id){
+  await deleteTask(customerId, id);
+  renderGlobalTodo();
+}
+
+/* ---------- OUTREACH ---------- */
+const EMAIL_TEMPLATES = [
+  {id:'renewal_reminder', label:'Renewal reminder', hint:'Give the customer a heads-up their policy is renewing soon and that you\'re reviewing it for them.'},
+  {id:'review_results', label:'Annual review results', hint:'Share the outcome of the annual review — what you checked, what changed or stayed the same, any savings found.'},
+  {id:'docs_request', label:'Requesting documents', hint:'Ask the customer to send over their current declarations page or a recent bill so you can start the review.'},
+  {id:'quote_found', label:'Better quote found', hint:'Let the customer know you found a better rate or coverage option and lay out next steps to switch.'},
+  {id:'no_change', label:'No better option found', hint:'Let the customer know you shopped their policy but their current one is still the best value — reassure them the check was still worthwhile.'},
+  {id:'checkin', label:'General check-in', hint:'A friendly, low-pressure check-in to see if anything has changed in their situation (new car, moved, new dependents) that might affect coverage.'},
+];
+
+const CARRIER_TEMPLATES = [
+  {id:'rerate_request', label:'Request a re-rate / retention review', hint:'Formally ask the carrier to review this policy for any loyalty, retention, or re-rate pricing available before it renews, since the customer wants to avoid an unnecessary increase.'},
+  {id:'competitor_match', label:'Ask them to match a competing quote', hint:'Reference a competing quote and ask the carrier whether they can match or beat it to retain the customer\'s business.'},
+  {id:'dispute_increase', label:'Dispute a premium increase', hint:'Politely question a premium increase since the last term, ask for a specific explanation of what changed, and request a rate review.'},
+  {id:'bundle_inquiry', label:'Bundle / multi-policy discount inquiry', hint:'Ask whether adding another policy (auto, home, umbrella, etc.) would unlock a multi-policy discount on this account.'},
+  {id:'coverage_update', label:'Coverage / info update request', hint:'Notify the carrier of a change (address, vehicle, mileage, home improvement, etc.) that may affect the policy and ask them to update the file and re-quote if relevant.'},
+  {id:'cancellation', label:'Cancellation notice', hint:'Formally notify the carrier that the customer is cancelling this policy effective a certain date and request confirmation plus any refund of unearned premium.'},
+];
+
+const CARRIER_NOTES = {
+  'allstate': 'Allstate customers typically go through their local Allstate agent first, or call the main customer service line; agents can submit re-rate/retention requests on the customer\'s behalf.',
+  'state farm': 'State Farm is agent-based — requests usually route through the customer\'s assigned local State Farm agent rather than a general corporate inbox.',
+  'geico': 'GEICO is direct-to-consumer with no local agent; requests go through GEICO\'s customer service line or the online/app service center.',
+  'progressive': 'Progressive can be direct or through an independent agent depending on how the policy was purchased; check whether this policy has an agent of record before defaulting to Progressive\'s direct customer service line.',
+  'liberty mutual': 'Liberty Mutual customers usually have an assigned agent or can use their direct customer service line, depending on how the policy was written.',
+  'farmers': 'Farmers is agent-based — route requests through the customer\'s local Farmers agent.',
+  'nationwide': 'Nationwide policies are typically sold through independent or exclusive agents; route through the agent of record when one exists.',
+  'usaa': 'USAA is direct-to-member (military/veteran families) — requests go through USAA\'s member service line or secure messaging in their app/portal, no local agent.',
+  'travelers': 'Travelers is primarily sold through independent agents; route requests through the agent of record.',
+  'american family': 'American Family is agent-based — route through the customer\'s local American Family agent.',
+  'erie': 'Erie Insurance sells exclusively through independent agents — route through the agent of record.',
+  'chubb': 'Chubb (often used for higher-value homes/umbrella) is typically sold through independent agents or brokers — route through the agent/broker of record.',
+};
+function carrierNoteFor(carrierName){
+  const key = (carrierName||'').toLowerCase();
+  for(const k in CARRIER_NOTES){ if(key.includes(k)) return CARRIER_NOTES[k]; }
+  return 'No specific contact convention on file for this carrier — default to their general customer service line or the agent of record if this policy has one.';
+}
+
+async function renderPrep(){
+  if(!currentCustomer) return;
+  const body = document.getElementById('prepBody');
+  const policies = await getPolicies(currentCustomer.id);
+  if(!policies.length){
+    body.innerHTML = '<div class="empty"><div class="lead">No policies for outreach yet</div><p>Add a policy first, then come back here to build a call script or email.</p></div>';
+    return;
+  }
+  let selectedId = window._prepSelectId && policies.find(p=>p.id===window._prepSelectId) ? window._prepSelectId : policies[0].id;
+  window._prepSelectId = null;
+  body.innerHTML = '<div class="prep-layout"><div class="prep-list">'+policies.map(p=>
+    '<button class="prep-pick '+(p.id===selectedId?'active':'')+'" data-id="'+p.id+'"><div class="c">'+esc(p.carrier||'Unknown')+'</div><div class="t">'+esc((p.policyType||'').toUpperCase())+' · renews '+esc(formatDate(p.renewalDate)||'—')+'</div></button>'
+  ).join('')+'</div><div class="prep-panel" id="prepPanel"></div></div>';
+  document.querySelectorAll('.prep-pick').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('.prep-pick').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active');
+      loadPrepPanel(policies.find(p=>p.id===btn.dataset.id));
+    });
+  });
+  loadPrepPanel(policies.find(p=>p.id===selectedId));
+}
+
+function loadPrepPanel(p){
+  window._outreachMode = window._outreachMode || 'call';
+  renderOutreachPanel(p);
+}
+
+function renderOutreachPanel(p){
+  const panel = document.getElementById('prepPanel');
+  const mode = window._outreachMode || 'call';
+  panel.innerHTML =
+    '<div class="outreach-tabs">'+
+      '<button class="btn small '+(mode==='call'?'primary':'')+'" id="modeCallBtn">Call script</button>'+
+      '<button class="btn small '+(mode==='email'?'primary':'')+'" id="modeEmailBtn">Email</button>'+
+      '<button class="btn small '+(mode==='newquote'?'primary':'')+'" id="modeNewQuoteBtn">New quote request</button>'+
+    '</div>'+
+    '<div id="outreachBody" style="margin-top:14px;"></div>';
+  document.getElementById('modeCallBtn').addEventListener('click', ()=>{ window._outreachMode='call'; renderOutreachPanel(p); });
+  document.getElementById('modeEmailBtn').addEventListener('click', ()=>{ window._outreachMode='email'; renderOutreachPanel(p); });
+  document.getElementById('modeNewQuoteBtn').addEventListener('click', ()=>{ window._outreachMode='newquote'; renderOutreachPanel(p); });
+  if(mode==='call') renderCallMode(p);
+  else if(mode==='newquote') renderNewQuoteMode(p);
+  else renderEmailMode(p);
+}
+
+function renderCallMode(p){
+  const el = document.getElementById('outreachBody');
+  el.innerHTML = '<div class="qinput"><input id="competitorQuote" placeholder="Competitor quote, if you have one (e.g. $1,240/yr from Progressive)"><button class="btn primary" id="genScriptBtn">Generate script</button></div><div id="scriptOut" class="script-box" style="display:none;"></div>';
+  document.getElementById('genScriptBtn').addEventListener('click', ()=>generateScript(p));
+}
+
+function renderEmailMode(p){
+  const el = document.getElementById('outreachBody');
+  const recipient = window._emailRecipient || 'customer';
+  const templates = recipient==='carrier' ? CARRIER_TEMPLATES : EMAIL_TEMPLATES;
+  el.innerHTML =
+    '<div class="outreach-tabs" style="margin-bottom:12px;">'+
+      '<button class="btn small '+(recipient==='customer'?'primary':'')+'" id="recipCustBtn">To customer</button>'+
+      '<button class="btn small '+(recipient==='carrier'?'primary':'')+'" id="recipCarrierBtn">To '+esc(p.carrier||'carrier')+'</button>'+
+    '</div>'+
+    '<div class="qinput" style="align-items:flex-start;flex-wrap:wrap;">'+
+      '<select id="templatePick" style="font-family:\'IBM Plex Mono\',monospace;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);flex:1;min-width:200px;">'+
+        templates.map(t=>'<option value="'+t.id+'">'+esc(t.label)+'</option>').join('')+
+      '</select>'+
+      '<button class="btn primary" id="genEmailBtn">Draft email</button>'+
+    '</div>'+
+    (recipient==='carrier' ? '<input id="competitorQuoteEmail" placeholder="Competing quote to reference (optional) — e.g. $1,240/yr from Progressive" style="width:100%;font-family:\'IBM Plex Mono\',monospace;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);margin-bottom:10px;">' : '')+
+    '<input id="emailExtra" placeholder="Any specific detail to include (optional) — e.g. new premium is $1,180/yr" style="width:100%;font-family:\'IBM Plex Mono\',monospace;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);margin-bottom:14px;">'+
+    (recipient==='carrier' ? '<p style="font-size:11.5px;color:var(--muted);margin:-6px 0 14px;">'+esc(carrierNoteFor(p.carrier))+'</p>' : '')+
+    '<div id="emailOut" style="display:none;"></div>';
+  document.getElementById('recipCustBtn').addEventListener('click', ()=>{ window._emailRecipient='customer'; renderEmailMode(p); });
+  document.getElementById('recipCarrierBtn').addEventListener('click', ()=>{ window._emailRecipient='carrier'; renderEmailMode(p); });
+  document.getElementById('genEmailBtn').addEventListener('click', ()=>generateEmail(p, recipient));
+}
+
+function renderNewQuoteMode(p){
+  const el = document.getElementById('outreachBody');
+  const items = p.insuredItems || [];
+  el.innerHTML =
+    '<p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;">Pulls the vehicle/property details already on file for this policy so the new carrier has everything up front — no back-and-forth.</p>'+
+    (items.length ?
+      '<div class="items-grid" style="margin-bottom:16px;">'+items.map(it=>
+        '<div class="item-card" style="padding:11px 13px;">'+
+          '<div class="ic-desc" style="font-size:13px;">'+esc(it.description||'Unnamed item')+'</div>'+
+          (it.vin ? '<div class="ic-row"><span class="ic-k">VIN</span><span class="ic-v">'+esc(it.vin)+'</span></div>' : '')+
+          (it.mileage ? '<div class="ic-row"><span class="ic-k">Mileage</span><span class="ic-v">'+esc(it.mileage)+'</span></div>' : '')+
+        '</div>'
+      ).join('')+'</div>'
+      : '<p style="font-size:12px;color:var(--red);margin:0 0 16px;">No vehicles or property on file for this policy yet — add them from the "Add a Policy" edit form for a faster quote request. The draft below will still work with what\'s available.</p>'
+    )+
+    '<div class="qinput" style="align-items:flex-start;flex-wrap:wrap;">'+
+      '<input id="targetCarrier" placeholder="Carrier to request a quote from — e.g. Progressive" style="flex:1;min-width:200px;">'+
+      '<button class="btn primary" id="genQuoteBtn">Draft quote request</button>'+
+    '</div>'+
+    '<input id="quoteExtra" placeholder="Any other detail to include (optional)" style="width:100%;font-family:\'IBM Plex Mono\',monospace;font-size:13px;padding:9px 11px;border:1px solid var(--line);border-radius:6px;background:var(--paper);margin-bottom:14px;">'+
+    '<div id="quoteOut" style="display:none;"></div>';
+  document.getElementById('genQuoteBtn').addEventListener('click', ()=>generateQuoteRequest(p));
+}
+
+async function generateScript(p){
+  const out = document.getElementById('scriptOut');
+  const btn = document.getElementById('genScriptBtn');
+  const competitorQuote = document.getElementById('competitorQuote').value.trim();
+  out.style.display = 'block';
+  out.innerHTML = 'Drafting talking points…';
+  btn.disabled = true;
+  try{
+    const userMsg = "Draft a call script for this customer's policy:\nCustomer: "+currentCustomer.name+"\nCarrier: "+(p.carrier||'unknown')+"\nPolicy type: "+(p.policyType||'unknown')+"\nCurrent premium: "+(p.premium||'unknown')+" ("+(p.premiumFrequency||'unknown')+")\nDeductibles: "+(p.deductible||'unknown')+"\nCoverage: "+(p.coverageLimits||'unknown')+"\nRenewal date: "+(p.renewalDate||'unknown')+"\n"+(competitorQuote ? 'Competitor quote to reference: '+competitorQuote : 'No competitor quote available — focus on asking about loyalty discounts, bundling, and any rate increases since last term.');
+    const data = await callAnthropic({
+      max_tokens: 1000,
+      system: "You write short, practical phone-call scripts for an insurance advisor about to call a carrier on behalf of their customer to ask about renewal pricing or request a re-rate. Plain, confident, non-confrontational language. Structure the output as plain text with short section labels in ALL CAPS followed by a colon, each on its own line, then 1-3 sentences or bullet-style lines under it. Sections: OPENING, KEY POINTS TO MENTION, IF THEY PUSH BACK, CLOSING ASK. Keep it under 220 words total. No markdown formatting, no asterisks.",
+      messages: [ { role: "user", content: userMsg } ],
+    });
+    const textBlock = (data.content||[]).find(b=>b.type==='text');
+    const raw = textBlock ? textBlock.text.trim() : '';
+    let html = '';
+    const parts = raw.split(/\n(?=[A-Z ]{4,}:)/);
+    parts.forEach(chunk=>{
+      const m = chunk.match(/^([A-Z ]{4,}):\s*([\s\S]*)$/);
+      if(m){ html += '<span class="line-label">'+esc(m[1])+'</span>'+esc(m[2].trim())+'\n'; }
+      else { html += esc(chunk.trim())+'\n'; }
+    });
+    out.innerHTML = html || 'Could not generate a script — try again.';
+  }catch(err){
+    console.error(err);
+    out.innerHTML = 'Something went wrong generating the script. Try again in a moment.';
+  }
+  btn.disabled = false;
+}
+
+async function generateEmail(p, recipient){
+  recipient = recipient || 'customer';
+  const templateId = document.getElementById('templatePick').value;
+  const templates = recipient==='carrier' ? CARRIER_TEMPLATES : EMAIL_TEMPLATES;
+  const template = templates.find(t=>t.id===templateId);
+  const extra = document.getElementById('emailExtra').value.trim();
+  const competitorQuote = recipient==='carrier' && document.getElementById('competitorQuoteEmail') ? document.getElementById('competitorQuoteEmail').value.trim() : '';
+  const btn = document.getElementById('genEmailBtn');
+  const out = document.getElementById('emailOut');
+  out.style.display = 'block';
+  out.innerHTML = '<div class="script-box">Drafting the email…</div>';
+  btn.disabled = true;
+  try{
+    const baseFacts = "Customer: "+currentCustomer.name+"\nCarrier: "+(p.carrier||'unknown')+"\nPolicy type: "+(p.policyType||'unknown')+"\nPolicy number: "+(p.policyNumber||'unknown')+"\nCurrent premium: "+(p.premium||'unknown')+" ("+(p.premiumFrequency||'unknown')+")\nDeductibles: "+(p.deductible||'unknown')+"\nCoverage: "+(p.coverageLimits||'unknown')+"\nRenewal date: "+(p.renewalDate||'unknown');
+    let userMsg, systemPrompt;
+    if(recipient==='carrier'){
+      userMsg = "Draft an email of this type: "+template.label+".\nWhat this email should accomplish: "+template.hint+"\n\n"+baseFacts+"\n"+(competitorQuote ? 'Competing quote to reference: '+competitorQuote : '')+"\n"+(extra ? 'Specific detail to include: '+extra : '')+"\n\nContact convention note for this carrier: "+carrierNoteFor(p.carrier);
+      systemPrompt = "You write short, professional emails from an independent insurance advisor to an insurance carrier (or the customer's agent of record at that carrier), on behalf of a specific customer, requesting an action on their policy — a re-rate, a competitor match, a coverage update, or similar. This works across any major U.S. carrier — address it appropriately using the contact convention note provided if relevant. Reference the policy number and named insured so the carrier can locate the account. Firm but courteous tone, no threats, no exaggeration. Sign off as 'Renewal Desk, on behalf of "+currentCustomer.name+"'. Respond with ONLY a raw JSON object with two fields: subject (string, under 60 characters) and body (string, plain text with \\n for line breaks, under 200 words, no markdown formatting). No preamble, no markdown fences.";
+    } else {
+      userMsg = "Draft an email of this type: "+template.label+".\nWhat this email should accomplish: "+template.hint+"\n\n"+baseFacts+"\n"+(extra ? 'Specific detail to include: '+extra : '');
+      systemPrompt = "You write short, warm, professional emails for an independent insurance advisor writing to their own customer. No lead-gen or sales-y language — this advisor's whole pitch is that they are not a spam operation. Sign off as 'Renewal Desk'. Respond with ONLY a raw JSON object with two fields: subject (string, under 60 characters) and body (string, plain text with \\n for line breaks, under 180 words, no markdown formatting). No preamble, no markdown fences.";
+    }
+    const data = await callAnthropic({
+      max_tokens: 1000,
+      system: systemPrompt,
+      messages: [ { role: "user", content: userMsg } ],
+    });
+    const textBlock = (data.content||[]).find(b=>b.type==='text');
+    const clean = textBlock ? textBlock.text.replace(/```json|```/g,'').trim() : '{}';
+    const parsed = JSON.parse(clean);
+    const subject = parsed.subject || '(no subject)';
+    const bodyText = parsed.body || 'Could not generate an email — try again.';
+    out.innerHTML =
+      '<div class="script-box">'+
+        '<span class="line-label">SUBJECT</span>'+esc(subject)+'\n'+
+        '<span class="line-label">BODY</span>'+esc(bodyText)+
+      '</div>'+
+      '<div style="margin-top:10px;"><button class="btn small" id="copyEmailBtn">Copy email</button></div>';
+    document.getElementById('copyEmailBtn').addEventListener('click', ()=>{
+      navigator.clipboard.writeText('Subject: '+subject+'\n\n'+bodyText).then(()=>{
+        const b = document.getElementById('copyEmailBtn'); b.textContent = 'Copied';
+        setTimeout(()=>{ b.textContent = 'Copy email'; }, 1500);
+      });
+    });
+  }catch(err){
+    console.error(err);
+    out.innerHTML = '<div class="script-box">Something went wrong generating the email. Try again in a moment.</div>';
+  }
+  btn.disabled = false;
+}
+
+async function generateQuoteRequest(p){
+  const targetCarrier = document.getElementById('targetCarrier').value.trim();
+  if(!targetCarrier){ customAlert('Enter which carrier you\'re requesting the quote from.'); return; }
+  const extra = document.getElementById('quoteExtra').value.trim();
+  const btn = document.getElementById('genQuoteBtn');
+  const out = document.getElementById('quoteOut');
+  out.style.display = 'block';
+  out.innerHTML = '<div class="script-box">Drafting the quote request…</div>';
+  btn.disabled = true;
+  try{
+    const items = p.insuredItems || [];
+    const itemsText = items.length ? items.map(it=>
+      '- '+(it.description||'Item')+(it.vin ? ' | VIN: '+it.vin : '')+(it.mileage ? ' | Annual mileage: '+it.mileage : '')+(it.detail ? ' | '+it.detail : '')
+    ).join('\n') : 'No vehicles/property on file yet.';
+    const userMsg = "Draft an email requesting a new insurance quote from a different carrier, for this customer's current policy:\nTarget carrier to request the quote from: "+targetCarrier+"\nCustomer: "+currentCustomer.name+"\nCurrent carrier (for context, being replaced/compared): "+(p.carrier||'unknown')+"\nPolicy type: "+(p.policyType||'unknown')+"\nCurrent premium: "+(p.premium||'unknown')+" ("+(p.premiumFrequency||'unknown')+")\nDesired deductibles (match current): "+(p.deductible||'unknown')+"\nDesired coverage limits (match current): "+(p.coverageLimits||'unknown')+"\n\nInsured vehicles/property to quote:\n"+itemsText+"\n"+(extra?'Additional detail: '+extra:'');
+    const data = await callAnthropic({
+      max_tokens: 1000,
+      system: "You write concise, complete emails requesting a new insurance quote from a carrier, sent by an independent insurance advisor on behalf of their customer. The goal is to front-load every detail the carrier would normally have to ask for in a follow-up call, so include the named insured, policy type, and a clearly formatted list of every insured vehicle/property with its VIN and annual mileage where available, plus the desired coverage limits and deductibles to match or beat. Professional, efficient tone. Sign off as 'Renewal Desk, on behalf of "+currentCustomer.name+"'. Respond with ONLY a raw JSON object with two fields: subject (string, under 60 characters) and body (string, plain text with \\n for line breaks, under 220 words, no markdown formatting). No preamble, no markdown fences.",
+      messages: [ { role: "user", content: userMsg } ],
+    });
+    const textBlock = (data.content||[]).find(b=>b.type==='text');
+    const clean = textBlock ? textBlock.text.replace(/```json|```/g,'').trim() : '{}';
+    const parsed = JSON.parse(clean);
+    const subject = parsed.subject || '(no subject)';
+    const bodyText = parsed.body || 'Could not generate a quote request — try again.';
+    out.innerHTML =
+      '<div class="script-box">'+
+        '<span class="line-label">SUBJECT</span>'+esc(subject)+'\n'+
+        '<span class="line-label">BODY</span>'+esc(bodyText)+
+      '</div>'+
+      '<div style="margin-top:10px;"><button class="btn small" id="copyQuoteBtn">Copy email</button></div>';
+    document.getElementById('copyQuoteBtn').addEventListener('click', ()=>{
+      navigator.clipboard.writeText('Subject: '+subject+'\n\n'+bodyText).then(()=>{
+        const b = document.getElementById('copyQuoteBtn'); b.textContent = 'Copied';
+        setTimeout(()=>{ b.textContent = 'Copy email'; }, 1500);
+      });
+    });
+  }catch(err){
+    console.error(err);
+    out.innerHTML = '<div class="script-box">Something went wrong generating the quote request. Try again in a moment.</div>';
+  }
+  btn.disabled = false;
+}
+
+/* ---------- init ---------- */
+initAuth();
+</script>
+</body>
+</html>

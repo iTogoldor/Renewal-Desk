@@ -1,0 +1,12 @@
+{
+  "name": "renewal-desk",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A one-person renewal desk: customers, policies, renewal to-dos, and outreach drafting, backed by Supabase.",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}
