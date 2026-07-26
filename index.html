@@ -374,10 +374,16 @@ async function callAnthropic(payload){
 
 /* ---------- row <-> app object mapping ---------- */
 function customerFromRow(r){
-  return { id:r.id, name:r.name, email:r.email||'', phone:r.phone||'', notes:r.notes||'', createdAt:r.created_at };
+  return { id:r.id, name:r.name, email:r.email||'', phone:r.phone||'', street:r.street||'', city:r.city||'', state:r.state||'', zip:r.zip||'', notes:r.notes||'', createdAt:r.created_at };
 }
 function customerToRow(c, userId){
-  return { id:c.id, user_id:userId, name:c.name, email:c.email||null, phone:c.phone||null, notes:c.notes||null };
+  return { id:c.id, user_id:userId, name:c.name, email:c.email||null, phone:c.phone||null, street:c.street||null, city:c.city||null, state:c.state||null, zip:c.zip||null, notes:c.notes||null };
+}
+function formatAddress(c){
+  if(!c) return '';
+  let cityStateZip = [c.city, c.state].filter(Boolean).join(', ');
+  if(c.zip) cityStateZip = (cityStateZip ? cityStateZip+' ' : '') + c.zip;
+  return [c.street, cityStateZip].filter(Boolean).join(', ');
 }
 function policyFromRow(r){
   return {
@@ -652,7 +658,7 @@ async function renderCustomers(){
   const q = (window._custSearchQuery||'').trim().toLowerCase();
   if(q){
     rows = rows.filter(({c, policies})=>{
-      const custFields = [c.name, c.email, c.phone, c.notes];
+      const custFields = [c.name, c.email, c.phone, c.notes, c.street, c.city, c.state, c.zip];
       if(custFields.some(f=> (f||'').toLowerCase().includes(q))) return true;
       return policies.some(p=>{
         const pFields = [p.carrier, p.policyNumber, p.namedInsured, p.policyType, p.coverageLimits];
@@ -672,7 +678,7 @@ async function renderCustomers(){
       return '<div class="clist-row" onclick="openCustomer(\''+c.id+'\')">'+
         '<div class="initials small">'+initials(c.name)+'</div>'+
         '<div class="clist-name">'+esc(c.name)+'</div>'+
-        '<div class="clist-meta">'+esc(c.email||c.phone||'—')+'</div>'+
+        '<div class="clist-meta">'+esc([c.email||c.phone||'—', formatAddress(c)].filter(Boolean).join(' · '))+'</div>'+
         '<div class="clist-count">'+count+' polic'+(count===1?'y':'ies')+'</div>'+
         '<span class="badge '+b.cls+'">'+b.text+'</span>'+
         '<button class="edit" style="opacity:1;position:static;pointer-events:auto;" onclick="event.stopPropagation();openCustomerModalById(\''+c.id+'\')">✎</button>'+
@@ -686,7 +692,7 @@ async function renderCustomers(){
       '<button class="edit" onclick="event.stopPropagation();openCustomerModalById(\''+c.id+'\')">✎</button>'+
       '<div class="initials">'+initials(c.name)+'</div>'+
       '<p class="cname">'+esc(c.name)+'</p>'+
-      '<p class="cmeta">'+esc(c.email||c.phone||'No contact on file')+'</p>'+
+      '<p class="cmeta">'+esc([c.email||c.phone||'No contact on file', formatAddress(c)].filter(Boolean).join(' · '))+'</p>'+
       '<div class="cstats">'+
         '<div class="cstat"><div class="k">Policies</div><div class="v">'+count+'</div></div>'+
         '<div class="cstat"><div class="k">Next renewal</div><div class="v">'+(nextDays===null?'—':nextDays+'d')+'</div></div>'+
@@ -720,6 +726,12 @@ function openCustomerModal(existing){
     '<div class="field"><label>Name</label><input id="m_name" placeholder="Jane Rivera" value="'+esc(existing?existing.name:'')+'"></div>'+
     '<div class="field"><label>Email</label><input id="m_email" placeholder="jane@email.com" value="'+esc(existing?existing.email:'')+'"></div>'+
     '<div class="field"><label>Phone</label><input id="m_phone" placeholder="(555) 555-0100" value="'+esc(existing?existing.phone:'')+'"></div>'+
+    '<div class="field"><label>Street address</label><input id="m_street" placeholder="123 Main St" value="'+esc(existing?existing.street:'')+'"></div>'+
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;">'+
+      '<div class="field" style="flex:2;min-width:110px;"><label>City</label><input id="m_city" placeholder="Herndon" value="'+esc(existing?existing.city:'')+'"></div>'+
+      '<div class="field" style="flex:1;min-width:60px;"><label>State</label><input id="m_state" placeholder="VA" value="'+esc(existing?existing.state:'')+'"></div>'+
+      '<div class="field" style="flex:1;min-width:70px;"><label>ZIP</label><input id="m_zip" placeholder="20170" value="'+esc(existing?existing.zip:'')+'"></div>'+
+    '</div>'+
     '<div class="field"><label>Notes</label><textarea id="m_notes" placeholder="How you know them, referral source, etc.">'+esc(existing?existing.notes:'')+'</textarea></div>'+
     '<div class="modal-actions">'+
       (isEdit ? '<button class="btn ghost" id="m_delete" style="margin-right:auto;color:var(--red);">Delete customer</button>' : '')+
@@ -746,6 +758,10 @@ function openCustomerModal(existing){
       name,
       email: document.getElementById('m_email').value.trim(),
       phone: document.getElementById('m_phone').value.trim(),
+      street: document.getElementById('m_street').value.trim(),
+      city: document.getElementById('m_city').value.trim(),
+      state: document.getElementById('m_state').value.trim(),
+      zip: document.getElementById('m_zip').value.trim(),
       notes: document.getElementById('m_notes').value.trim(),
       createdAt: isEdit ? existing.createdAt : new Date().toISOString(),
     };

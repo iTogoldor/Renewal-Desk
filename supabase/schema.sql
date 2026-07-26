@@ -7,6 +7,10 @@ create table if not exists customers (
   name text not null,
   email text,
   phone text,
+  street text,
+  city text,
+  state text,
+  zip text,
   notes text,
   created_at timestamptz not null default now()
 );
