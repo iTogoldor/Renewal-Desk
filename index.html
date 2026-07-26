@@ -326,6 +326,7 @@ async function getUserId(){
   const { data:{ user } } = await sb.auth.getUser();
   return user ? user.id : null;
 }
+let appEntered = false;
 async function initAuth(){
   const { data:{ session } } = await sb.auth.getSession();
   updateAuthUI(session);
@@ -337,10 +338,14 @@ function updateAuthUI(session){
   if(session){
     authScreen.style.display = 'none';
     mainApp.style.display = 'block';
-    showCustomerScreen();
+    // Supabase re-validates the session (and fires this callback again)
+    // whenever the browser tab regains focus. Only reset to the customer
+    // list on an actual sign-in, not on every one of those background checks.
+    if(!appEntered){ showCustomerScreen(); appEntered = true; }
   } else {
     authScreen.style.display = 'block';
     mainApp.style.display = 'none';
+    appEntered = false;
   }
 }
 document.getElementById('authSignInBtn').addEventListener('click', doSignIn);
@@ -385,11 +390,26 @@ function formatAddress(c){
   if(c.zip) cityStateZip = (cityStateZip ? cityStateZip+' ' : '') + c.zip;
   return [c.street, cityStateZip].filter(Boolean).join(', ');
 }
+function autoCoverageBlock(ac){
+  ac = ac || {};
+  const rows = [
+    ['Bodily Injury Liability (Each Person/Each Occurrence)', ac.bodilyInjuryLiability],
+    ['Property Damage Liability', ac.propertyDamageLiability],
+    ['UM BI - Add-On (Each Person/Each Occurrence)', ac.uninsuredMotoristsBI],
+    ['UM PD - Add-On', ac.uninsuredMotoristsPD],
+    ['Collision Ded', ac.collisionDed],
+    ['Other Than Collision Ded', ac.otherThanCollisionDed],
+    ['Emergency Road Service', ac.emergencyRoadService],
+  ].filter(([,v])=> v && String(v).trim());
+  if(!rows.length) return '';
+  return '<div class="ded-row"><div class="k">Coverage</div><div class="v">'+rows.map(([k,v])=>esc(k)+': '+esc(v)).join('<br>')+'</div></div>';
+}
 function policyFromRow(r){
   return {
     id:r.id, policyType:r.policy_type, carrier:r.carrier, namedInsured:r.named_insured,
     policyNumber:r.policy_number, premium:r.premium, premiumFrequency:r.premium_frequency,
     deductible:r.deductible, renewalDate:r.renewal_date, coverageLimits:r.coverage_limits,
+    autoCoverage:r.auto_coverage||{},
     notes:r.notes, insuredItems:r.insured_items||[], filePath:r.file_path, fileName:r.file_name,
     createdAt:r.created_at,
   };
@@ -403,7 +423,7 @@ function policyToRow(p, customerId, userId){
     premium_frequency:p.premiumFrequency||null,
     deductible: (p.deductible===undefined || p.deductible===null) ? null : String(p.deductible),
     renewal_date:p.renewalDate||null, coverage_limits:p.coverageLimits||null, notes:p.notes||null,
-    insured_items:p.insuredItems||[],
+    insured_items:p.insuredItems||[], auto_coverage:p.autoCoverage||{},
   };
 }
 function taskFromRow(r){
@@ -801,6 +821,7 @@ async function renderDashboard(){
   const policyCards = '<div class="grid">'+policies.map(p=>{
     const days = daysUntil(p.renewalDate);
     const b = badgeFor(days);
+    const acBlock = (p.policyType==='auto') ? autoCoverageBlock(p.autoCoverage) : '';
     return '<div class="pcard" data-type="'+(p.policyType||'POLICY').toUpperCase()+'">'+
       '<div class="pcard-top"><div><p class="carrier">'+esc(p.carrier||'Unknown carrier')+'</p><p class="insured">'+esc(p.namedInsured||'')+'</p></div>'+
       '<div class="ring-wrap">'+ringSVG(days)+'<div class="ring-days"><span class="n">'+(days===null?'–':days)+'</span><span class="u">DAYS</span></div></div></div>'+
@@ -808,8 +829,10 @@ async function renderDashboard(){
         '<div class="stat"><div class="k">Premium</div><div class="v">'+fmtMoney(p.premium)+freqLabel(p.premiumFrequency)+'</div></div>'+
         '<div class="stat"><div class="k">Renews</div><div class="v">'+(formatDate(p.renewalDate)||'—')+'</div></div>'+
       '</div>'+
-      '<div class="ded-row"><div class="k">Coverage</div><div class="v">'+(p.coverageLimits ? esc(p.coverageLimits) : '—')+'</div></div>'+
-      '<div class="ded-row"><div class="k">Deductibles</div><div class="v">'+fmtMoneyOrText(p.deductible)+'</div></div>'+
+      (acBlock || (
+        '<div class="ded-row"><div class="k">Coverage</div><div class="v">'+(p.coverageLimits ? esc(p.coverageLimits) : '—')+'</div></div>'+
+        '<div class="ded-row"><div class="k">Deductibles</div><div class="v">'+fmtMoneyOrText(p.deductible)+'</div></div>'
+      ))+
       '<span class="badge '+b.cls+'">'+b.text+'</span>'+
       '<div class="pcard-actions">'+
         '<button class="btn small" onclick="editPolicyFromDashboard(\''+p.id+'\')">Edit</button>'+
@@ -960,6 +983,8 @@ function showReviewForm(p){
   const types = ['auto','home','renters','umbrella','life','health','landlord','other'];
   const freqs = ['annual','semiannual','monthly'];
   window._editingItems = Array.isArray(p.insuredItems) ? p.insuredItems.map(x=>Object.assign({},x)) : [];
+  const ac = p.autoCoverage || {};
+  const initialType = p.policyType || types[0];
   wrap.innerHTML = '<div class="review-form"><h3>Confirm the details for '+esc(currentCustomer.name)+'</h3><div class="fgrid">'+
     '<div class="field"><label>Policy type</label><select id="f_policyType">'+types.map(t=>'<option value="'+t+'" '+(p.policyType===t?'selected':'')+'>'+t+'</option>').join('')+'</select></div>'+
     '<div class="field"><label>Carrier</label><input id="f_carrier" value="'+esc(p.carrier||'')+'"></div>'+
@@ -972,6 +997,17 @@ function showReviewForm(p){
     '<div class="field full"><label>Coverage limits</label><input id="f_coverageLimits" value="'+esc(p.coverageLimits||'')+'"></div>'+
     '<div class="field full"><label>Notes</label><textarea id="f_notes">'+esc(p.notes||'')+'</textarea></div>'+
     '</div>'+
+    '<div id="autoCoverageSection" style="display:'+(initialType==='auto'?'block':'none')+';">'+
+    '<h3 style="margin-top:24px;">Auto coverage details</h3>'+
+    '<div class="fgrid">'+
+      '<div class="field"><label>Bodily Injury Liability — Each Person/Each Occurrence</label><input id="f_ac_bi" placeholder="100,000/300,000" value="'+esc(ac.bodilyInjuryLiability||'')+'"></div>'+
+      '<div class="field"><label>Property Damage Liability</label><input id="f_ac_pd" placeholder="50,000" value="'+esc(ac.propertyDamageLiability||'')+'"></div>'+
+      '<div class="field"><label>Uninsured Motorists BI - Add-On — Each Person/Each Occurrence</label><input id="f_ac_umbi" placeholder="100,000/300,000" value="'+esc(ac.uninsuredMotoristsBI||'')+'"></div>'+
+      '<div class="field"><label>Uninsured Motorists PD - Add-On</label><input id="f_ac_umpd" placeholder="50,000" value="'+esc(ac.uninsuredMotoristsPD||'')+'"></div>'+
+      '<div class="field"><label>Collision Ded</label><input id="f_ac_collision" placeholder="500" value="'+esc(ac.collisionDed||'')+'"></div>'+
+      '<div class="field"><label>Other Than Collision Ded</label><input id="f_ac_otc" placeholder="500" value="'+esc(ac.otherThanCollisionDed||'')+'"></div>'+
+      '<div class="field"><label>Emergency Road Service</label><input id="f_ac_ers" placeholder="Yes / $6" value="'+esc(ac.emergencyRoadService||'')+'"></div>'+
+    '</div></div>'+
     '<h3 style="margin-top:24px;">Insured vehicles &amp; property</h3>'+
     '<div id="itemsList"></div>'+
     '<button class="btn small" id="addItemBtn" type="button">+ Add vehicle or property</button>'+
@@ -979,6 +1015,9 @@ function showReviewForm(p){
     '<button class="btn ghost" onclick="discardReview()">Discard</button>'+
     '<button class="btn primary" id="saveBtn">Save to desk</button></div></div>';
   renderItemsList();
+  document.getElementById('f_policyType').addEventListener('change', e=>{
+    document.getElementById('autoCoverageSection').style.display = e.target.value==='auto' ? 'block' : 'none';
+  });
   document.getElementById('addItemBtn').addEventListener('click', ()=>{
     window._editingItems.push({type:'vehicle', description:'', vin:'', mileage:'', detail:''});
     renderItemsList();
@@ -990,6 +1029,12 @@ function showReviewForm(p){
       policyNumber: val('f_policyNumber'), premium: val('f_premium'), premiumFrequency: val('f_premiumFrequency'),
       deductible: val('f_deductible'), renewalDate: val('f_renewalDate'), coverageLimits: val('f_coverageLimits'),
       notes: val('f_notes'), insuredItems: window._editingItems,
+      autoCoverage: {
+        bodilyInjuryLiability: val('f_ac_bi'), propertyDamageLiability: val('f_ac_pd'),
+        uninsuredMotoristsBI: val('f_ac_umbi'), uninsuredMotoristsPD: val('f_ac_umpd'),
+        collisionDed: val('f_ac_collision'), otherThanCollisionDed: val('f_ac_otc'),
+        emergencyRoadService: val('f_ac_ers'),
+      },
     };
     await savePolicy(currentCustomer.id, policy);
     if(window._pendingFile){

@@ -28,6 +28,7 @@ create table if not exists policies (
   deductible text,
   renewal_date date,
   coverage_limits text,
+  auto_coverage jsonb not null default '{}'::jsonb,
   notes text,
   insured_items jsonb not null default '[]'::jsonb,
   file_path text,
