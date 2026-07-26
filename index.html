@@ -341,7 +341,7 @@ function updateAuthUI(session){
     // Supabase re-validates the session (and fires this callback again)
     // whenever the browser tab regains focus. Only reset to the customer
     // list on an actual sign-in, not on every one of those background checks.
-    if(!appEntered){ showCustomerScreen(); appEntered = true; }
+    if(!appEntered){ restoreLastView(); appEntered = true; }
   } else {
     authScreen.style.display = 'block';
     mainApp.style.display = 'none';
@@ -442,7 +442,7 @@ async function getCustomers(){
 async function saveCustomer(c){
   const userId = await getUserId();
   const { error } = await sb.from('customers').upsert(customerToRow(c, userId));
-  if(error) console.error(error);
+  if(error){ console.error(error); throw error; }
 }
 async function deleteCustomer(id){
   const policies = await getPolicies(id);
@@ -461,7 +461,7 @@ async function getPolicies(customerId){
 async function savePolicy(customerId, p){
   const userId = await getUserId();
   const { error } = await sb.from('policies').upsert(policyToRow(p, customerId, userId));
-  if(error) console.error(error);
+  if(error){ console.error(error); throw error; }
 }
 async function deletePolicy(customerId, id){
   const { error } = await sb.from('policies').delete().eq('id', id);
@@ -492,7 +492,7 @@ async function getTasks(customerId){
 async function saveTask(customerId, t){
   const userId = await getUserId();
   const { error } = await sb.from('tasks').upsert(taskToRow(t, customerId, userId));
-  if(error) console.error(error);
+  if(error){ console.error(error); throw error; }
 }
 async function deleteTask(customerId, id){
   const { error } = await sb.from('tasks').delete().eq('id', id);
@@ -619,6 +619,8 @@ function customAlert(message){
 /* ---------- screen navigation ---------- */
 function showCustomerScreen(){
   currentCustomer = null;
+  localStorage.removeItem('rd_lastCustomerId');
+  localStorage.removeItem('rd_lastView');
   document.getElementById('screen-customers').classList.add('active');
   document.getElementById('screen-workspace').classList.remove('active');
   document.getElementById('crumb').style.display = 'none';
@@ -630,6 +632,7 @@ async function openCustomer(id){
   const customers = await getCustomers();
   currentCustomer = customers.find(c=>c.id===id);
   if(!currentCustomer) return;
+  localStorage.setItem('rd_lastCustomerId', id);
   document.getElementById('screen-customers').classList.remove('active');
   document.getElementById('screen-workspace').classList.add('active');
   document.getElementById('crumb').style.display = 'flex';
@@ -641,6 +644,19 @@ async function openCustomer(id){
   document.getElementById('view-dashboard').classList.add('active');
   renderDashboard();
 }
+async function restoreLastView(){
+  const lastCustomerId = localStorage.getItem('rd_lastCustomerId');
+  if(lastCustomerId){
+    await openCustomer(lastCustomerId);
+    if(currentCustomer && currentCustomer.id===lastCustomerId){
+      const lastView = localStorage.getItem('rd_lastView') || 'dashboard';
+      const navBtn = document.querySelector('nav button[data-view="'+lastView+'"]');
+      if(navBtn) navBtn.click();
+      return;
+    }
+  }
+  showCustomerScreen();
+}
 document.getElementById('brandHome').addEventListener('click', showCustomerScreen);
 document.getElementById('crumbBack').addEventListener('click', showCustomerScreen);
 document.getElementById('crumbEdit').addEventListener('click', ()=>openCustomerModal(currentCustomer));
@@ -651,6 +667,7 @@ document.querySelectorAll('nav button').forEach(b=>{
     document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
     b.classList.add('active');
     document.getElementById('view-'+b.dataset.view).classList.add('active');
+    localStorage.setItem('rd_lastView', b.dataset.view);
     if(b.dataset.view==='dashboard') renderDashboard();
     if(b.dataset.view==='todo') renderTodo();
     if(b.dataset.view==='prep') renderPrep();
@@ -785,7 +802,12 @@ function openCustomerModal(existing){
       notes: document.getElementById('m_notes').value.trim(),
       createdAt: isEdit ? existing.createdAt : new Date().toISOString(),
     };
-    await saveCustomer(c);
+    try{
+      await saveCustomer(c);
+    }catch(err){
+      customAlert('Could not save this customer. Please try again in a moment.');
+      return;
+    }
     closeModal();
     if(isEdit && currentCustomer && currentCustomer.id===c.id){
       currentCustomer = c;
@@ -1036,7 +1058,12 @@ function showReviewForm(p){
         emergencyRoadService: val('f_ac_ers'),
       },
     };
-    await savePolicy(currentCustomer.id, policy);
+    try{
+      await savePolicy(currentCustomer.id, policy);
+    }catch(err){
+      customAlert('Could not save this policy — please try again in a moment. If this keeps happening, the database may be missing a recent update.');
+      return;
+    }
     if(window._pendingFile){
       await savePolicyFile(currentCustomer.id, id, window._pendingFile);
       window._pendingFile = null;
@@ -1157,7 +1184,12 @@ function showAddTaskForm(){
       notes: '',
       createdAt: new Date().toISOString(),
     };
-    await saveTask(currentCustomer.id, task);
+    try{
+      await saveTask(currentCustomer.id, task);
+    }catch(err){
+      customAlert('Could not save this task. Please try again in a moment.');
+      return;
+    }
     wrap.innerHTML = '';
     renderTodo();
   });
