@@ -267,6 +267,8 @@
   </div>
 
   <div class="screen active" id="screen-customers">
+    <div id="savingsSummary" style="margin-bottom:22px;"></div>
+
     <div class="todo-toolbar">
       <h2>To-Do — All Customers</h2>
     </div>
@@ -446,6 +448,24 @@ function taskFromRow(r){
 function taskToRow(t, customerId, userId){
   return { id:t.id, user_id:userId, customer_id:customerId, policy_id:t.policyId||null, title:t.title, due_date:t.dueDate||null, priority:t.priority||'low', status:t.status||'todo', auto: !!t.auto, notes:t.notes||null };
 }
+function quoteFromRow(r){
+  return {
+    id:r.id, policyId:r.policy_id, carrier:r.carrier, policyNumber:r.policy_number,
+    premium:r.premium, premiumFrequency:r.premium_frequency, renewalDate:r.renewal_date,
+    autoCoverage:r.auto_coverage||{}, homeCoverage:r.home_coverage||{}, notes:r.notes||'',
+    screenshotPath:r.screenshot_path, screenshotName:r.screenshot_name,
+    status:r.status, savingsAmount:r.savings_amount, finalizedAt:r.finalized_at, createdAt:r.created_at,
+  };
+}
+function quoteToRow(q, customerId, policyId, userId){
+  return {
+    id:q.id, user_id:userId, customer_id:customerId, policy_id:policyId,
+    carrier:q.carrier||null, policy_number:q.policyNumber||null,
+    premium: (q.premium===undefined||q.premium===null||q.premium==='') ? null : String(q.premium),
+    premium_frequency:q.premiumFrequency||null, renewal_date:q.renewalDate||null,
+    auto_coverage:q.autoCoverage||{}, home_coverage:q.homeCoverage||{}, notes:q.notes||null,
+  };
+}
 
 /* ---------- customer storage ---------- */
 async function getCustomers(){
@@ -462,6 +482,12 @@ async function deleteCustomer(id){
   const policies = await getPolicies(id);
   const paths = policies.filter(p=>p.filePath).map(p=>p.filePath);
   if(paths.length) await sb.storage.from('policy-files').remove(paths);
+  const screenshotPaths = [];
+  for(const p of policies){
+    const quotes = await getQuotes(p.id);
+    quotes.forEach(q=>{ if(q.screenshotPath) screenshotPaths.push(q.screenshotPath); });
+  }
+  if(screenshotPaths.length) await sb.storage.from('quote-screenshots').remove(screenshotPaths);
   const { error } = await sb.from('customers').delete().eq('id', id);
   if(error) console.error(error);
 }
@@ -478,6 +504,9 @@ async function savePolicy(customerId, p){
   if(error){ console.error(error); throw error; }
 }
 async function deletePolicy(customerId, id){
+  const quotes = await getQuotes(id);
+  const screenshotPaths = quotes.filter(q=>q.screenshotPath).map(q=>q.screenshotPath);
+  if(screenshotPaths.length) await sb.storage.from('quote-screenshots').remove(screenshotPaths);
   const { error } = await sb.from('policies').delete().eq('id', id);
   if(error) console.error(error);
 }
@@ -495,6 +524,85 @@ async function deletePolicyFile(customerId, policyId){
   if(error || !data || !data.file_path) return;
   await sb.storage.from('policy-files').remove([data.file_path]);
   await sb.from('policies').update({ file_path:null, file_name:null }).eq('id', policyId);
+}
+
+/* ---------- quote storage ---------- */
+async function getQuotes(policyId){
+  const { data, error } = await sb.from('quotes').select('*').eq('policy_id', policyId).order('created_at');
+  if(error){ console.error(error); return []; }
+  return (data||[]).map(quoteFromRow);
+}
+async function saveQuote(customerId, policyId, q){
+  const userId = await getUserId();
+  const { error } = await sb.from('quotes').upsert(quoteToRow(q, customerId, policyId, userId));
+  if(error){ console.error(error); throw error; }
+}
+async function deleteQuote(id){
+  const { data } = await sb.from('quotes').select('screenshot_path').eq('id', id).single();
+  if(data && data.screenshot_path) await sb.storage.from('quote-screenshots').remove([data.screenshot_path]);
+  const { error } = await sb.from('quotes').delete().eq('id', id);
+  if(error) console.error(error);
+}
+async function saveQuoteScreenshot(customerId, policyId, quoteId, file){
+  const userId = await getUserId();
+  const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+  const path = userId+'/'+customerId+'/'+policyId+'/'+quoteId+'.'+ext;
+  const { error: upErr } = await sb.storage.from('quote-screenshots').upload(path, file, { upsert:true, contentType:file.type });
+  if(upErr){ console.error('Could not save the quote screenshot', upErr); throw upErr; }
+  const { error: updErr } = await sb.from('quotes').update({ screenshot_path: path, screenshot_name: file.name }).eq('id', quoteId);
+  if(updErr){ console.error(updErr); throw updErr; }
+}
+async function getQuoteScreenshotUrl(quoteId){
+  const { data: quote, error } = await sb.from('quotes').select('screenshot_path,screenshot_name').eq('id', quoteId).single();
+  if(error || !quote || !quote.screenshot_path) return null;
+  const { data: signed, error: signErr } = await sb.storage.from('quote-screenshots').createSignedUrl(quote.screenshot_path, 300);
+  if(signErr || !signed) return null;
+  return { url: signed.signedUrl, filename: quote.screenshot_name };
+}
+// Locks in a quote as the customer's new policy: snapshots the policy's
+// current terms into policy_history (with the savings this switch produced),
+// overwrites the policy with the quote's terms, and marks the quote won.
+async function finalizeQuote(customerId, policyId, quoteId){
+  const userId = await getUserId();
+  const { data: policyRow, error: pErr } = await sb.from('policies').select('*').eq('id', policyId).single();
+  if(pErr || !policyRow) throw pErr || new Error('Policy not found');
+  const { data: quoteRow, error: qErr } = await sb.from('quotes').select('*').eq('id', quoteId).single();
+  if(qErr || !quoteRow) throw qErr || new Error('Quote not found');
+
+  const oldAnnual = annualPremium(policyRow.premium, policyRow.premium_frequency);
+  const newAnnual = annualPremium(quoteRow.premium, quoteRow.premium_frequency);
+  const savings = oldAnnual - newAnnual;
+
+  const { error: histErr } = await sb.from('policy_history').insert({
+    id: 'ph_'+Date.now(), user_id: userId, customer_id: customerId, policy_id: policyId, quote_id: quoteId,
+    carrier: policyRow.carrier, policy_number: policyRow.policy_number, premium: policyRow.premium,
+    premium_frequency: policyRow.premium_frequency, renewal_date: policyRow.renewal_date,
+    coverage_limits: policyRow.coverage_limits, deductible: policyRow.deductible,
+    auto_coverage: policyRow.auto_coverage, home_coverage: policyRow.home_coverage,
+    savings_amount: savings,
+  });
+  if(histErr){ console.error(histErr); throw histErr; }
+
+  const { error: updPolicyErr } = await sb.from('policies').update({
+    carrier: quoteRow.carrier, policy_number: quoteRow.policy_number, premium: quoteRow.premium,
+    premium_frequency: quoteRow.premium_frequency, renewal_date: quoteRow.renewal_date,
+    auto_coverage: quoteRow.auto_coverage, home_coverage: quoteRow.home_coverage,
+  }).eq('id', policyId);
+  if(updPolicyErr){ console.error(updPolicyErr); throw updPolicyErr; }
+
+  const { error: updQuoteErr } = await sb.from('quotes').update({
+    status: 'won', savings_amount: savings, finalized_at: new Date().toISOString(),
+  }).eq('id', quoteId);
+  if(updQuoteErr){ console.error(updQuoteErr); throw updQuoteErr; }
+
+  return savings;
+}
+async function getTotalSavings(customerId){
+  let query = sb.from('policy_history').select('savings_amount');
+  if(customerId) query = query.eq('customer_id', customerId);
+  const { data, error } = await query;
+  if(error){ console.error(error); return 0; }
+  return (data||[]).reduce((sum,r)=> sum + (Number(r.savings_amount)||0), 0);
 }
 
 /* ---------- task storage ---------- */
@@ -579,6 +687,11 @@ function fmtMoney(v){
   if(isNaN(n)) return v;
   return '$'+n.toLocaleString(undefined,{maximumFractionDigits:0});
 }
+function annualPremium(premium, frequency){
+  const n = parseFloat(String(premium||0).replace(/[^0-9.]/g,'')) || 0;
+  const mult = frequency==='monthly' ? 12 : frequency==='semiannual' ? 2 : 1;
+  return n*mult;
+}
 function fmtMoneyOrText(v){
   if(v===undefined||v===null||v==='') return '—';
   if(typeof v === 'number') return fmtMoney(v);
@@ -641,6 +754,14 @@ function showCustomerScreen(){
   document.getElementById('taglineText').textContent = "A real person reviews every customer's policies each year. No lead lists, no spam calls — just the details, checked.";
   renderCustomers();
   renderGlobalTodo();
+  renderSavingsSummary();
+}
+async function renderSavingsSummary(){
+  const el = document.getElementById('savingsSummary');
+  const total = await getTotalSavings();
+  el.innerHTML = '<div class="dash-summary-card"><div class="summary-strip">'+
+    '<div class="s"><div class="n" style="color:var(--green);font-size:26px;">'+fmtMoney(total)+'</div><div class="l">Total saved across all customers</div></div>'+
+  '</div></div>';
 }
 async function openCustomer(id){
   const customers = await getCustomers();
@@ -841,17 +962,15 @@ async function renderDashboard(){
     return;
   }
 
-  const totalAnnual = policies.reduce((sum,p)=>{
-    const n = parseFloat(String(p.premium||0).replace(/[^0-9.]/g,'')) || 0;
-    const mult = p.premiumFrequency==='monthly' ? 12 : p.premiumFrequency==='semiannual' ? 2 : 1;
-    return sum + n*mult;
-  },0);
+  const totalAnnual = policies.reduce((sum,p)=> sum + annualPremium(p.premium, p.premiumFrequency), 0);
   const upcoming60 = policies.filter(p=>{ const d = daysUntil(p.renewalDate); return d!==null && d<=60; });
+  const totalSaved = await getTotalSavings(currentCustomer.id);
   const summaryBar =
     '<div class="dash-summary-card"><div class="summary-strip">'+
       '<div class="s"><div class="n">'+policies.length+'</div><div class="l">Policies on file</div></div>'+
       '<div class="s"><div class="n">'+fmtMoney(totalAnnual)+'</div><div class="l">Combined annual premium</div></div>'+
       '<div class="s"><div class="n">'+upcoming60.length+'</div><div class="l">Renewing within 60 days</div></div>'+
+      '<div class="s"><div class="n" style="color:var(--green);">'+fmtMoney(totalSaved)+'</div><div class="l">Saved for '+esc(currentCustomer.name.split(' ')[0])+'</div></div>'+
     '</div></div>';
 
   const policyCards = '<div class="grid">'+policies.map(p=>{
@@ -875,6 +994,7 @@ async function renderDashboard(){
       '<div class="pcard-actions">'+
         '<button class="btn small" onclick="editPolicyFromDashboard(\''+p.id+'\')">Edit</button>'+
         '<button class="btn small" onclick="viewPolicyPdf(\''+p.id+'\')">View PDF</button>'+
+        '<button class="btn small" onclick="openQuotesModal(\''+p.id+'\')">Quotes</button>'+
         '<button class="btn small" onclick="goPrep(\''+p.id+'\')">Prep call</button>'+
         '<button class="btn small ghost" onclick="removePolicy(\''+p.id+'\')">Delete</button>'+
       '</div>'+
@@ -949,6 +1069,172 @@ async function viewPolicyPdf(id){
   document.getElementById('pdfClose').addEventListener('click', closeModal);
   document.getElementById('pdfBackdrop').addEventListener('click', e=>{ if(e.target.id==='pdfBackdrop') closeModal(); });
 }
+
+/* ---------- QUOTES ---------- */
+async function openQuotesModal(policyId){
+  await renderQuotesModalList(policyId);
+}
+async function renderQuotesModalList(policyId){
+  const policies = await getPolicies(currentCustomer.id);
+  const policy = policies.find(p=>p.id===policyId);
+  if(!policy){ closeModal(); return; }
+  const quotes = await getQuotes(policyId);
+  const currentAnnual = annualPremium(policy.premium, policy.premiumFrequency);
+
+  const quoteCards = quotes.length ? quotes.map(q=>{
+    const qAnnual = annualPremium(q.premium, q.premiumFrequency);
+    const savings = currentAnnual - qAnnual;
+    const savingsLabel = savings>0 ? ('Saves '+fmtMoney(savings)+'/yr') : savings<0 ? (fmtMoney(Math.abs(savings))+'/yr more') : 'Same price';
+    const savingsColor = savings>0 ? 'var(--green)' : savings<0 ? 'var(--red)' : 'var(--muted)';
+    const isWon = q.status==='won';
+    return '<div class="item-card" style="margin-bottom:10px;'+(isWon?'border-color:var(--green);':'')+'">'+
+      '<div class="ic-top"><div><div class="ic-desc">'+esc(q.carrier||'Unknown carrier')+'</div>'+
+      '<div class="ic-policy">'+fmtMoney(q.premium)+freqLabel(q.premiumFrequency)+'</div></div></div>'+
+      '<div class="ic-row"><span class="ic-k">Vs. current</span><span class="ic-v" style="color:'+savingsColor+';">'+esc(savingsLabel)+'</span></div>'+
+      (q.renewalDate ? '<div class="ic-row"><span class="ic-k">Effective / renews</span><span class="ic-v">'+esc(formatDate(q.renewalDate)||'')+'</span></div>' : '')+
+      (q.notes ? '<div class="ic-row"><span class="ic-k">Notes</span><span class="ic-v">'+esc(q.notes)+'</span></div>' : '')+
+      '<div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">'+
+        (q.screenshotPath ? '<button class="btn small" onclick="viewQuoteScreenshot(\''+policyId+'\',\''+q.id+'\')">View screenshot</button>' : '')+
+        (isWon
+          ? '<span class="badge green">Finalized'+(q.finalizedAt ? ' '+esc(formatDate(q.finalizedAt.slice(0,10))||'') : '')+'</span>'
+          : '<button class="btn small primary" onclick="confirmFinalizeQuote(\''+policyId+'\',\''+q.id+'\')">Finalize this quote</button>')+
+        (!isWon ? '<button class="btn small ghost" onclick="removeQuote(\''+policyId+'\',\''+q.id+'\')">Delete</button>' : '')+
+      '</div>'+
+    '</div>';
+  }).join('') : '<p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;">No quotes logged yet for this policy.</p>';
+
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="quotesBackdrop"><div class="modal" style="max-width:560px;width:92vw;max-height:85vh;overflow-y:auto;">'+
+      '<h3>Quotes — '+esc(policy.carrier||'Unknown carrier')+' ('+esc((policy.policyType||'').toUpperCase())+')</h3>'+
+      '<p style="font-size:12.5px;color:var(--muted);margin:-8px 0 16px;">Current premium: '+fmtMoney(policy.premium)+freqLabel(policy.premiumFrequency)+' ('+fmtMoney(currentAnnual)+'/yr)</p>'+
+      quoteCards+
+      '<button class="btn primary" id="addQuoteBtn" style="width:100%;margin-top:6px;">+ Log a new quote</button>'+
+      '<div class="modal-actions"><button class="btn ghost" id="quotesCloseBtn">Close</button></div>'+
+    '</div></div>';
+  document.getElementById('quotesCloseBtn').addEventListener('click', closeModal);
+  document.getElementById('quotesBackdrop').addEventListener('click', e=>{ if(e.target.id==='quotesBackdrop') closeModal(); });
+  document.getElementById('addQuoteBtn').addEventListener('click', ()=> renderAddQuoteForm(policy));
+}
+function renderAddQuoteForm(policy){
+  const freqs = ['annual','semiannual','monthly'];
+  const isAuto = policy.policyType==='auto';
+  const isHome = policy.policyType==='home';
+  let coverageFieldsHtml = '';
+  if(isAuto){
+    coverageFieldsHtml =
+      '<h3 style="margin-top:20px;">Auto coverage details</h3><div class="fgrid">'+
+        '<div class="field"><label>Bodily Injury Liability — Each Person/Each Occurrence</label><input id="q_ac_bi" placeholder="100,000/300,000"></div>'+
+        '<div class="field"><label>Property Damage Liability</label><input id="q_ac_pd" placeholder="50,000"></div>'+
+        '<div class="field"><label>Uninsured Motorists BI - Add-On — Each Person/Each Occurrence</label><input id="q_ac_umbi" placeholder="100,000/300,000"></div>'+
+        '<div class="field"><label>Uninsured Motorists PD - Add-On</label><input id="q_ac_umpd" placeholder="50,000"></div>'+
+        '<div class="field"><label>Collision Ded</label><input id="q_ac_collision" placeholder="500"></div>'+
+        '<div class="field"><label>Other Than Collision Ded</label><input id="q_ac_otc" placeholder="500"></div>'+
+        '<div class="field"><label>Emergency Road Service</label><input id="q_ac_ers" placeholder="Yes / $6"></div>'+
+      '</div>';
+  } else if(isHome){
+    coverageFieldsHtml =
+      '<h3 style="margin-top:20px;">Home coverage details</h3><div class="fgrid">'+
+        '<div class="field"><label>Dwelling</label><input id="q_hc_dwelling" placeholder="300,000"></div>'+
+        '<div class="field"><label>Other Structures</label><input id="q_hc_other" placeholder="30,000"></div>'+
+        '<div class="field"><label>Personal Property</label><input id="q_hc_personal" placeholder="150,000"></div>'+
+        '<div class="field"><label>Loss of Use</label><input id="q_hc_loss" placeholder="60,000"></div>'+
+        '<div class="field"><label>Personal Liability — Each Occurrence</label><input id="q_hc_liability" placeholder="300,000"></div>'+
+        '<div class="field"><label>Medical Payment to Others</label><input id="q_hc_medical" placeholder="5,000"></div>'+
+        '<div class="field"><label>Deductible</label><input id="q_hc_deductible" placeholder="1,000"></div>'+
+      '</div>';
+  }
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="addQuoteBackdrop"><div class="modal" style="max-width:560px;width:92vw;max-height:85vh;overflow-y:auto;">'+
+      '<h3>Log a quote — '+esc(policy.carrier||'current policy')+'</h3>'+
+      '<div class="fgrid">'+
+        '<div class="field"><label>Carrier</label><input id="q_carrier" placeholder="Progressive"></div>'+
+        '<div class="field"><label>Policy number</label><input id="q_policyNumber"></div>'+
+        '<div class="field"><label>Premium ($)</label><input id="q_premium"></div>'+
+        '<div class="field"><label>Frequency</label><select id="q_premiumFrequency">'+freqs.map(f=>'<option value="'+f+'">'+f+'</option>').join('')+'</select></div>'+
+        '<div class="field"><label>Effective / renewal date</label><input id="q_renewalDate" type="date"></div>'+
+        '<div class="field full"><label>Notes</label><textarea id="q_notes"></textarea></div>'+
+      '</div>'+
+      coverageFieldsHtml+
+      '<div class="field" style="margin-top:16px;"><label>Screenshot of the quote</label>'+
+        '<input type="file" id="q_screenshot" accept="image/*" style="display:block;font-size:12.5px;">'+
+      '</div>'+
+      '<div class="modal-actions"><button class="btn ghost" id="q_cancel">Cancel</button><button class="btn primary" id="q_save">Save quote</button></div>'+
+    '</div></div>';
+  document.getElementById('q_cancel').addEventListener('click', ()=> renderQuotesModalList(policy.id));
+  document.getElementById('addQuoteBackdrop').addEventListener('click', e=>{ if(e.target.id==='addQuoteBackdrop') renderQuotesModalList(policy.id); });
+  document.getElementById('q_save').addEventListener('click', async ()=>{
+    const carrier = document.getElementById('q_carrier').value.trim();
+    if(!carrier){ customAlert('Enter the carrier for this quote.'); return; }
+    const id = 'q_'+Date.now();
+    const quote = {
+      id, carrier, policyNumber: document.getElementById('q_policyNumber').value.trim(),
+      premium: document.getElementById('q_premium').value.trim(),
+      premiumFrequency: document.getElementById('q_premiumFrequency').value,
+      renewalDate: document.getElementById('q_renewalDate').value || null,
+      notes: document.getElementById('q_notes').value.trim(),
+      autoCoverage: isAuto ? {
+        bodilyInjuryLiability: val('q_ac_bi'), propertyDamageLiability: val('q_ac_pd'),
+        uninsuredMotoristsBI: val('q_ac_umbi'), uninsuredMotoristsPD: val('q_ac_umpd'),
+        collisionDed: val('q_ac_collision'), otherThanCollisionDed: val('q_ac_otc'),
+        emergencyRoadService: val('q_ac_ers'),
+      } : {},
+      homeCoverage: isHome ? {
+        dwelling: val('q_hc_dwelling'), otherStructures: val('q_hc_other'),
+        personalProperty: val('q_hc_personal'), lossOfUse: val('q_hc_loss'),
+        personalLiability: val('q_hc_liability'), medicalPayments: val('q_hc_medical'),
+        deductible: val('q_hc_deductible'),
+      } : {},
+    };
+    try{
+      await saveQuote(currentCustomer.id, policy.id, quote);
+    }catch(err){
+      customAlert('Could not save this quote. Please try again in a moment.');
+      return;
+    }
+    const screenshotFile = document.getElementById('q_screenshot').files[0];
+    if(screenshotFile){
+      try{ await saveQuoteScreenshot(currentCustomer.id, policy.id, id, screenshotFile); }
+      catch(err){ customAlert('Quote saved, but the screenshot failed to upload. You can try re-adding it.'); return; }
+    }
+    renderQuotesModalList(policy.id);
+  });
+}
+async function viewQuoteScreenshot(policyId, quoteId){
+  const rec = await getQuoteScreenshotUrl(quoteId);
+  if(!rec){ customAlert('Could not load the screenshot right now.'); return; }
+  document.getElementById('modalRoot').innerHTML =
+    '<div class="modal-backdrop" id="ssBackdrop"><div class="modal" style="max-width:640px;width:92vw;">'+
+      '<h3>'+esc(rec.filename||'Quote screenshot')+'</h3>'+
+      '<img src="'+rec.url+'" style="width:100%;border-radius:8px;border:1px solid var(--line);display:block;">'+
+      '<div class="modal-actions">'+
+        '<a class="btn small" href="'+rec.url+'" download="'+esc(rec.filename||'quote.png')+'">Download</a>'+
+        '<button class="btn primary" id="ssBack">Back to quotes</button>'+
+      '</div>'+
+    '</div></div>';
+  document.getElementById('ssBack').addEventListener('click', ()=> renderQuotesModalList(policyId));
+  document.getElementById('ssBackdrop').addEventListener('click', e=>{ if(e.target.id==='ssBackdrop') renderQuotesModalList(policyId); });
+}
+async function confirmFinalizeQuote(policyId, quoteId){
+  const ok = await customConfirm('Finalize this quote? The policy\'s carrier, premium, and coverage will be updated to match it, and the old terms plus the savings will be logged to history.');
+  if(!ok) return;
+  try{
+    const savings = await finalizeQuote(currentCustomer.id, policyId, quoteId);
+    closeModal();
+    customAlert(savings>=0
+      ? 'Finalized — saved '+fmtMoney(savings)+'/yr for '+esc(currentCustomer.name)+'.'
+      : 'Finalized — this policy now costs '+fmtMoney(Math.abs(savings))+'/yr more, but it\'s recorded.');
+    renderDashboard();
+  }catch(err){
+    customAlert('Could not finalize this quote. Please try again in a moment.');
+  }
+}
+async function removeQuote(policyId, quoteId){
+  const ok = await customConfirm('Delete this quote?');
+  if(!ok) return;
+  await deleteQuote(quoteId);
+  renderQuotesModalList(policyId);
+}
+
 function discardReview(){
   document.getElementById('reviewFormWrap').innerHTML = '';
   document.getElementById('extractStatus').innerHTML = '';
