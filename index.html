@@ -318,6 +318,12 @@
 <div id="modalRoot"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  if(window.pdfjsLib){
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+</script>
 <script src="config.js"></script>
 <script>
 let currentCustomer = null;
@@ -1280,6 +1286,125 @@ document.getElementById('manualEntryBtn').addEventListener('click', ()=>{
   showReviewForm({});
 });
 
+/* ---------- local (no-AI) declarations-page parser ----------
+   Extracts raw text from the PDF with pdf.js, then uses label/pattern
+   matching to guess field values. This is a best-effort heuristic, not
+   real understanding — it works decently on well-formatted pages and
+   will miss or misplace things on unusual layouts, so everything still
+   needs a human check on the review form before saving. */
+async function extractPdfText(file){
+  const buf = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+  let fullText = '';
+  for(let i=1; i<=pdf.numPages; i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    let lastY = null;
+    let line = '';
+    const lines = [];
+    content.items.forEach(item=>{
+      const y = item.transform[5];
+      if(lastY !== null && Math.abs(y - lastY) > 2){
+        lines.push(line);
+        line = '';
+      }
+      line += (line ? ' ' : '') + item.str;
+      lastY = y;
+    });
+    if(line) lines.push(line);
+    fullText += lines.join('\n') + '\n';
+  }
+  return fullText;
+}
+const KNOWN_CARRIERS = ['Allstate','State Farm','GEICO','Progressive','Liberty Mutual','Farmers','Nationwide','USAA','Travelers','American Family','Erie','Chubb','Safeco','The Hartford','Auto-Owners','MetLife','Mercury','Esurance','21st Century','Amica','Country Financial'];
+function findCarrier(text){
+  for(const name of KNOWN_CARRIERS){
+    const re = new RegExp('\\b'+name.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&')+'\\b','i');
+    if(re.test(text)) return name;
+  }
+  return '';
+}
+function findFirst(text, patterns){
+  for(const re of patterns){
+    const m = text.match(re);
+    if(m && m[1]) return m[1].trim();
+  }
+  return '';
+}
+function findMoney(text, labels){
+  for(const label of labels){
+    const re = new RegExp(label+'\\s*[:\\-]?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{2})?)', 'i');
+    const m = text.match(re);
+    if(m) return m[1];
+  }
+  return '';
+}
+function normalizeDate(s){
+  let m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if(m){
+    let [,mo,da,yr] = m;
+    if(yr.length===2) yr = (parseInt(yr,10) < 50 ? '20' : '19') + yr;
+    return yr+'-'+mo.padStart(2,'0')+'-'+da.padStart(2,'0');
+  }
+  const d = new Date(s);
+  if(!isNaN(d)) return d.toISOString().slice(0,10);
+  return '';
+}
+function findDate(text, labels){
+  const dateRe = '(\\d{1,2}\\/\\d{1,2}\\/\\d{2,4}|[A-Za-z]{3,9}\\.?\\s+\\d{1,2},?\\s+\\d{4})';
+  for(const label of labels){
+    const re = new RegExp(label+'\\s*[:\\-]?\\s*'+dateRe, 'i');
+    const m = text.match(re);
+    if(m) return normalizeDate(m[1]);
+  }
+  return '';
+}
+function parseDeclarationsText(text){
+  const norm = text.replace(/\r/g,'');
+  const isAuto = /Bodily\s*Injury|Uninsured\s*Motorists?/i.test(norm);
+  const isHome = !isAuto && /Dwelling|Loss\s*of\s*Use/i.test(norm);
+  const result = {
+    carrier: findCarrier(norm),
+    policyType: isAuto ? 'auto' : isHome ? 'home' : '',
+    policyNumber: findFirst(norm, [/Policy\s*(?:Number|No\.?|#)\s*[:\-]?\s*([A-Z0-9\-]{5,25})/i]),
+    namedInsured: findFirst(norm, [/Named\s*Insured\s*[:\-]?\s*([A-Za-z0-9 ,.'\-]{3,60})/i]),
+    premium: findMoney(norm, ['Total\\s*(?:Policy\\s*)?Premium','Policy\\s*Premium','Premium\\s*Amount']),
+    premiumFrequency: /monthly/i.test(norm) ? 'monthly' : /semi[\s-]?annual/i.test(norm) ? 'semiannual' : 'annual',
+    deductibles: isAuto || isHome ? '' : findMoney(norm, ['Deductible']),
+    coverageLimits: '',
+    effectiveDate: findDate(norm, ['Effective\\s*Date']),
+    renewalDate: findDate(norm, ['Expiration\\s*Date','Renewal\\s*Date']),
+    notes: '',
+    insuredItems: [],
+    autoCoverage: {},
+    homeCoverage: {},
+  };
+  if(isAuto){
+    result.autoCoverage = {
+      bodilyInjuryLiability: findFirst(norm, [/Bodily\s*Injury\s*Liability[^\d$]*\$?([\d,]+(?:\s*\/\s*\$?[\d,]+)?)/i]),
+      propertyDamageLiability: findMoney(norm, ['Property\\s*Damage\\s*Liability']),
+      uninsuredMotoristsBI: findFirst(norm, [/Uninsured\s*Motorists?\s*BI[^\d$]*\$?([\d,]+(?:\s*\/\s*\$?[\d,]+)?)/i]),
+      uninsuredMotoristsPD: findMoney(norm, ['Uninsured\\s*Motorists?\\s*PD']),
+      collisionDed: findMoney(norm, ['Collision\\s*Deductible','Collision\\s*Ded']),
+      otherThanCollisionDed: findMoney(norm, ['Other\\s*Than\\s*Collision\\s*Deductible','Other\\s*Than\\s*Collision\\s*Ded','Comprehensive\\s*Deductible']),
+      emergencyRoadService: findFirst(norm, [/Emergency\s*Road\s*Service\s*[:\-]?\s*(\$?[\w.]+)/i]),
+    };
+    const vinMatches = norm.match(/\b[A-HJ-NPR-Z0-9]{17}\b/g) || [];
+    result.insuredItems = [...new Set(vinMatches)].map(vin=>({ type:'vehicle', description:'', vin, mileage:'', detail:'' }));
+  } else if(isHome){
+    result.homeCoverage = {
+      dwelling: findMoney(norm, ['Dwelling']),
+      otherStructures: findMoney(norm, ['Other\\s*Structures']),
+      personalProperty: findMoney(norm, ['Personal\\s*Property']),
+      lossOfUse: findMoney(norm, ['Loss\\s*of\\s*Use']),
+      personalLiability: findMoney(norm, ['Personal\\s*Liability']),
+      medicalPayments: findMoney(norm, ['Medical\\s*Payments?(?:\\s*to\\s*Others)?']),
+      deductible: findMoney(norm, ['Deductible']),
+    };
+  }
+  return result;
+}
+
 async function handleFile(file){
   const statusEl = document.getElementById('extractStatus');
   document.getElementById('reviewFormWrap').innerHTML = '';
@@ -1288,30 +1413,12 @@ async function handleFile(file){
     return;
   }
   statusEl.innerHTML = '<div class="extract-status"><div class="spinner"></div> Reading the document…</div>';
+  window._pendingFile = file;
+  window._pendingFileName = file.name;
   try{
-    const base64Data = await new Promise((res, rej)=>{
-      const r = new FileReader();
-      r.onload = () => res(r.result.split(',')[1]);
-      r.onerror = () => rej(new Error('Read failed'));
-      r.readAsDataURL(file);
-    });
-    window._pendingFile = file;
-    window._pendingFileName = file.name;
-    const data = await callAnthropic({
-      max_tokens: 1000,
-      system: "You extract structured data from insurance declarations pages. Respond with ONLY a raw JSON object, no markdown fences, no preamble. Fields: carrier (string — the short, common brand name only, e.g. 'Allstate' not 'Allstate Fire and Casualty Insurance Company', 'State Farm' not 'State Farm Mutual Automobile Insurance Company'; strip legal suffixes like Inc., Insurance Company, Mutual, Group, of America, etc.), policyType (one of: auto, home, renters, umbrella, life, health, landlord, other), policyNumber (string), namedInsured (string), premium (number, total premium as a plain number no symbols), premiumFrequency (one of: annual, semiannual, monthly), deductibles (string — list every deductible found on the page with its label, e.g. '$500 collision / $500 comprehensive' or '$1,000 wind/hail, $2,500 all other perils, $0 liability'; if there is only one, just state it plainly e.g. '$500'), coverageLimits (short string summarizing key limits, e.g. '100/300/100 liability, $250k dwelling'), effectiveDate (YYYY-MM-DD), renewalDate (YYYY-MM-DD, the policy expiration/renewal date), insuredItems (array of objects — every distinct insured vehicle or property listed on the page; for auto policies list EACH vehicle separately. Each object has: type ('vehicle' or 'property' or 'other'), description (short label, e.g. '2022 Honda Civic EX' or '123 Main St, Herndon VA'), vin (string, only for vehicles, null if not found), mileage (string, annual mileage, only for vehicles, null if not found), detail (string, one more relevant fact, null if none). If no insurable items are listed, return an empty array.), notes (short string, any red flags or unusual terms, or empty string). If a field truly cannot be found, use null.",
-      messages: [
-        { role: "user", content: [
-          { type: "document", source: { type: "base64", media_type: "application/pdf", data: base64Data } },
-          { type: "text", text: "Extract the policy data as JSON per the schema." }
-        ]}
-      ],
-    });
-    const textBlock = (data.content||[]).find(b=>b.type==='text');
-    if(!textBlock) throw new Error('No response text');
-    const clean = textBlock.text.replace(/```json|```/g,'').trim();
-    const extracted = JSON.parse(clean);
-    statusEl.innerHTML = '<div class="extract-status" style="color:var(--green);">Extracted — check the details below before saving.</div>';
+    const text = await extractPdfText(file);
+    const extracted = parseDeclarationsText(text);
+    statusEl.innerHTML = '<div class="extract-status" style="color:var(--green);">Pulled what it could find — double-check everything below before saving, this is a best-effort local scan, not AI.</div>';
     showReviewForm(extracted);
   }catch(err){
     console.error(err);
