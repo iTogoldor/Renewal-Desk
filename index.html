@@ -604,6 +604,21 @@ async function getTotalSavings(customerId){
   if(error){ console.error(error); return 0; }
   return (data||[]).reduce((sum,r)=> sum + (Number(r.savings_amount)||0), 0);
 }
+// Best not-yet-finalized quote per policy, summed — a live "here's what you
+// could still save" preview while shopping, separate from realized savings.
+async function getPendingSavings(customerId){
+  const policies = await getPolicies(customerId);
+  let total = 0;
+  for(const p of policies){
+    const quotes = await getQuotes(p.id);
+    const pending = quotes.filter(q=>q.status!=='won');
+    if(!pending.length) continue;
+    const currentAnnual = annualPremium(p.premium, p.premiumFrequency);
+    const best = Math.max(...pending.map(q=> currentAnnual - annualPremium(q.premium, q.premiumFrequency)));
+    if(best > 0) total += best;
+  }
+  return total;
+}
 
 /* ---------- task storage ---------- */
 async function getTasks(customerId){
@@ -965,12 +980,14 @@ async function renderDashboard(){
   const totalAnnual = policies.reduce((sum,p)=> sum + annualPremium(p.premium, p.premiumFrequency), 0);
   const upcoming60 = policies.filter(p=>{ const d = daysUntil(p.renewalDate); return d!==null && d<=60; });
   const totalSaved = await getTotalSavings(currentCustomer.id);
+  const pendingSaved = await getPendingSavings(currentCustomer.id);
   const summaryBar =
     '<div class="dash-summary-card"><div class="summary-strip">'+
       '<div class="s"><div class="n">'+policies.length+'</div><div class="l">Policies on file</div></div>'+
       '<div class="s"><div class="n">'+fmtMoney(totalAnnual)+'</div><div class="l">Combined annual premium</div></div>'+
       '<div class="s"><div class="n">'+upcoming60.length+'</div><div class="l">Renewing within 60 days</div></div>'+
       '<div class="s"><div class="n" style="color:var(--green);">'+fmtMoney(totalSaved)+'</div><div class="l">Saved for '+esc(currentCustomer.name.split(' ')[0])+'</div></div>'+
+      (pendingSaved>0 ? '<div class="s"><div class="n" style="color:var(--brass);">'+fmtMoney(pendingSaved)+'</div><div class="l">Could still save (pending quotes)</div></div>' : '')+
     '</div></div>';
 
   const policyCards = '<div class="grid">'+policies.map(p=>{
@@ -1197,6 +1214,7 @@ function renderAddQuoteForm(policy){
       catch(err){ customAlert('Quote saved, but the screenshot failed to upload. You can try re-adding it.'); return; }
     }
     renderQuotesModalList(policy.id);
+    renderDashboard();
   });
 }
 async function viewQuoteScreenshot(policyId, quoteId){
@@ -1233,6 +1251,7 @@ async function removeQuote(policyId, quoteId){
   if(!ok) return;
   await deleteQuote(quoteId);
   renderQuotesModalList(policyId);
+  renderDashboard();
 }
 
 function discardReview(){
