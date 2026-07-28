@@ -6,3 +6,5 @@ alter table customers add column if not exists street text;
 alter table customers add column if not exists city text;
 alter table customers add column if not exists state text;
 alter table customers add column if not exists zip text;
+
+NOTIFY pgrst, 'reload schema';
