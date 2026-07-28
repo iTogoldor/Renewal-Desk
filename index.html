@@ -1368,6 +1368,27 @@ function findDate(text, labels){
   }
   return '';
 }
+// Looks a couple of lines above/below the line the VIN was found on for a
+// model year and an "Annual Miles" figure, since those are usually printed
+// right next to the vehicle they belong to. Uses a small line-based window
+// (rather than a raw character radius) so it doesn't drift into an
+// unrelated year elsewhere on the page, like a policy date.
+function extractVehicleInfo(lines, vinLineIndex){
+  const start = Math.max(0, vinLineIndex-2);
+  const end = Math.min(lines.length, vinLineIndex+3);
+  const windowLines = lines.slice(start, end);
+  let description = '';
+  for(const line of windowLines){
+    const yearMatch = line.match(/\b(19[5-9]\d|20[0-4]\d)\b/);
+    if(!yearMatch) continue;
+    const afterYear = line.slice(yearMatch.index+yearMatch[0].length, yearMatch.index+yearMatch[0].length+60);
+    const modelMatch = afterYear.match(/^[ \t\-]*((?:(?!VIN\b)[A-Z0-9][A-Za-z0-9\-]*)(?:[ \t]+(?:(?!VIN\b)[A-Z0-9][A-Za-z0-9\-]*)){0,3})/);
+    description = modelMatch ? (yearMatch[1]+' '+modelMatch[1].trim()) : yearMatch[1];
+    break;
+  }
+  const mileageMatch = windowLines.join('\n').match(/Annual\s*Mile(?:age)?s?(?:\s*Driven)?\s*[:\-]?\s*([\d,]+)/i);
+  return { description, mileage: mileageMatch ? mileageMatch[1] : '' };
+}
 function parseDeclarationsText(text){
   const norm = text.replace(/\r/g,'');
   const isAuto = /Bodily\s*Injury|Uninsured\s*Motorists?/i.test(norm);
@@ -1398,8 +1419,18 @@ function parseDeclarationsText(text){
       otherThanCollisionDed: findMoney(norm, ['Other\\s*Than\\s*Collision\\s*Deductible','Other\\s*Than\\s*Collision\\s*Ded','Comprehensive\\s*Deductible']),
       emergencyRoadService: findFirst(norm, [/Emergency\s*Road\s*Service\s*[:\-]?\s*(\$?[\w.]+)/i]),
     };
-    const vinMatches = norm.match(/\b[A-HJ-NPR-Z0-9]{17}\b/g) || [];
-    result.insuredItems = [...new Set(vinMatches)].map(vin=>({ type:'vehicle', description:'', vin, mileage:'', detail:'' }));
+    const lines = norm.split('\n');
+    const seenVins = new Set();
+    result.insuredItems = [];
+    lines.forEach((line, idx)=>{
+      const vinMatch = line.match(/\b[A-HJ-NPR-Z0-9]{17}\b/);
+      if(!vinMatch) return;
+      const vin = vinMatch[0];
+      if(seenVins.has(vin)) return;
+      seenVins.add(vin);
+      const info = extractVehicleInfo(lines, idx);
+      result.insuredItems.push({ type:'vehicle', description: info.description, vin, mileage: info.mileage, detail:'' });
+    });
   } else if(isHome){
     result.homeCoverage = {
       dwelling: findMoney(norm, ['Dwelling']),
