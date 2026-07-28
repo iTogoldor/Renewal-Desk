@@ -708,6 +708,14 @@ function fmtMoney(v){
   if(isNaN(n)) return v;
   return '$'+n.toLocaleString(undefined,{maximumFractionDigits:0});
 }
+function formatPhoneInput(value){
+  const digits = value.replace(/\D/g,'').slice(0,10);
+  const len = digits.length;
+  if(len===0) return '';
+  if(len<4) return '('+digits;
+  if(len<7) return '('+digits.slice(0,3)+') '+digits.slice(3);
+  return '('+digits.slice(0,3)+') '+digits.slice(3,6)+'-'+digits.slice(6);
+}
 function annualPremium(premium, frequency){
   const n = parseFloat(String(premium||0).replace(/[^0-9.]/g,'')) || 0;
   const mult = frequency==='monthly' ? 12 : frequency==='semiannual' ? 2 : 1;
@@ -933,6 +941,7 @@ function openCustomerModal(existing){
     '</div></div></div>';
   document.getElementById('m_cancel').addEventListener('click', closeModal);
   document.getElementById('modalBackdrop').addEventListener('click', e=>{ if(e.target.id==='modalBackdrop') closeModal(); });
+  document.getElementById('m_phone').addEventListener('input', e=>{ e.target.value = formatPhoneInput(e.target.value); });
   if(isEdit){
     document.getElementById('m_delete').addEventListener('click', async ()=>{
       const ok = await customConfirm('Remove '+existing.name+' and all of their policies? This can\'t be undone.');
