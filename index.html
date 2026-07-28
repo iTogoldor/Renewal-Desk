@@ -1340,11 +1340,40 @@ function findFirst(text, patterns){
   }
   return '';
 }
-function findMoney(text, labels){
+// Finds a label, then looks for the first dollar-shaped number within the
+// next stretch of text after it — not just immediately adjacent — since
+// real dec pages often put a colon, extra words, or column spacing between
+// a label and its value.
+function findMoney(text, labels, maxDistance){
+  maxDistance = maxDistance || 120;
   for(const label of labels){
-    const re = new RegExp(label+'\\s*[:\\-]?\\s*\\$?\\s*([\\d,]+(?:\\.\\d{2})?)', 'i');
-    const m = text.match(re);
-    if(m) return m[1];
+    const re = new RegExp(label, 'i');
+    const m = re.exec(text);
+    if(!m) continue;
+    const window = text.slice(m.index+m[0].length, m.index+m[0].length+maxDistance);
+    const mm = window.match(/\$\s*([\d,]+(?:\.\d{2})?)|\b(\d[\d,]{1,}(?:\.\d{2})?)\b/);
+    if(mm) return mm[1] || mm[2];
+  }
+  return '';
+}
+function findNumberNear(text, labelPattern, maxDistance){
+  maxDistance = maxDistance || 60;
+  const re = new RegExp(labelPattern, 'i');
+  const m = re.exec(text);
+  if(!m) return '';
+  const window = text.slice(m.index+m[0].length, m.index+m[0].length+maxDistance);
+  const nm = window.match(/\b(\d[\d,]{1,})\b/);
+  return nm ? nm[1] : '';
+}
+function findAfterLabel(lines, labelRegex){
+  for(let i=0;i<lines.length;i++){
+    const m = lines[i].match(labelRegex);
+    if(!m) continue;
+    const rest = lines[i].slice(m.index+m[0].length).trim().replace(/^[:\-]\s*/,'');
+    if(rest) return rest.split(/\s{2,}/)[0].trim();
+    for(let j=i+1;j<lines.length;j++){
+      if(lines[j].trim()) return lines[j].trim();
+    }
   }
   return '';
 }
@@ -1386,18 +1415,19 @@ function extractVehicleInfo(lines, vinLineIndex){
     description = modelMatch ? (yearMatch[1]+' '+modelMatch[1].trim()) : yearMatch[1];
     break;
   }
-  const mileageMatch = windowLines.join('\n').match(/Annual\s*Mile(?:age)?s?(?:\s*Driven)?\s*[:\-]?\s*([\d,]+)/i);
-  return { description, mileage: mileageMatch ? mileageMatch[1] : '' };
+  const mileage = findNumberNear(windowLines.join('\n'), 'Annual\\s*Mile(?:age)?s?(?:\\s*Driven)?\\s*[:\\-]?');
+  return { description, mileage };
 }
 function parseDeclarationsText(text){
   const norm = text.replace(/\r/g,'');
+  const lines = norm.split('\n');
   const isAuto = /Bodily\s*Injury|Uninsured\s*Motorists?/i.test(norm);
   const isHome = !isAuto && /Dwelling|Loss\s*of\s*Use/i.test(norm);
   const result = {
     carrier: findCarrier(norm),
     policyType: isAuto ? 'auto' : isHome ? 'home' : '',
     policyNumber: findFirst(norm, [/Policy\s*(?:Number|No\.?|#)\s*[:\-]?\s*([A-Z0-9\-]{5,25})/i]),
-    namedInsured: findFirst(norm, [/Named\s*Insured\s*[:\-]?\s*([A-Za-z0-9 ,.'\-]{3,60})/i]),
+    namedInsured: findAfterLabel(lines, /Named\s*Insured\s*[:\-]?/i),
     premium: findMoney(norm, ['Total\\s*(?:Policy\\s*)?Premium','Policy\\s*Premium','Premium\\s*Amount']),
     premiumFrequency: /monthly/i.test(norm) ? 'monthly' : /semi[\s-]?annual/i.test(norm) ? 'semiannual' : 'annual',
     deductibles: isAuto || isHome ? '' : findMoney(norm, ['Deductible']),
@@ -1415,11 +1445,10 @@ function parseDeclarationsText(text){
       propertyDamageLiability: findMoney(norm, ['Property\\s*Damage\\s*Liability']),
       uninsuredMotoristsBI: findFirst(norm, [/Uninsured\s*Motorists?\s*BI[^\d$]*\$?([\d,]+(?:\s*\/\s*\$?[\d,]+)?)/i]),
       uninsuredMotoristsPD: findMoney(norm, ['Uninsured\\s*Motorists?\\s*PD']),
-      collisionDed: findMoney(norm, ['Collision\\s*Deductible','Collision\\s*Ded']),
-      otherThanCollisionDed: findMoney(norm, ['Other\\s*Than\\s*Collision\\s*Deductible','Other\\s*Than\\s*Collision\\s*Ded','Comprehensive\\s*Deductible']),
+      collisionDed: findMoney(norm, ['Collision\\s*Ded(?:uctible|uction)?']),
+      otherThanCollisionDed: findMoney(norm, ['Other\\s*Than\\s*Collision\\s*Ded(?:uctible|uction)?','Comprehensive\\s*Ded(?:uctible|uction)?']),
       emergencyRoadService: findFirst(norm, [/Emergency\s*Road\s*Service\s*[:\-]?\s*(\$?[\w.]+)/i]),
     };
-    const lines = norm.split('\n');
     const seenVins = new Set();
     result.insuredItems = [];
     lines.forEach((line, idx)=>{
